@@ -1,4 +1,4 @@
-import React, { useState, useEffect } from 'react';
+import React, { useState, useEffect, useRef } from 'react';
 import { 
   Users, 
   FileText, 
@@ -18,7 +18,11 @@ import {
   ExternalLink,
   ChevronRight,
   ClipboardList,
-  Bot
+  Bot,
+  Sparkles,
+  Zap,
+  CheckCircle2,
+  ListRestart
 } from 'lucide-react';
 import { motion, AnimatePresence } from 'framer-motion';
 import { 
@@ -35,15 +39,21 @@ import AdminResumeDatabase from './components/admin/AdminResumeDatabase';
 import AdminJobDescriptions from './components/admin/AdminJobDescriptions';
 import AIChatbotSidebar from './components/admin/AIChatbotSidebar';
 import CandidateSubmit from './components/candidate/CandidateSubmit';
+import CandidateJobBoard from './components/candidate/CandidateJobBoard';
 import CandidatePrepHub from './components/candidate/CandidatePrepHub';
 import CandidateSimulation from './components/candidate/CandidateSimulation';
 import CandidateJobs from './components/candidate/CandidateJobs';
 
-const ADMIN_EMAILS = ["himanshubansal1803@gmail.com", "nikhiltelkar19@gmail.com", "hartejsinghsandhu2806@gmail.com"];
+const ADMIN_EMAILS = [
+  "himanshubansal1803@gmail.com", 
+  "nikhiltelkar19@gmail.com", 
+  "hartejsinghsandhu2806@gmail.com", 
+  "vivekkrishna7985@gmail.com"
+];
 
 const API_BASE_URL = "http://localhost:5001/api";
 
-const DashboardShell = ({ role, activeTab, setActiveTab, user, onOpenChat, candidates, jobs, onRefresh }) => {
+const DashboardShell = ({ role, activeTab, setActiveTab, user, onOpenChat, candidates, jobs, onRefresh, recommendations }) => {
   const isAdmin = role === 'admin';
 
   return (
@@ -173,38 +183,71 @@ const DashboardShell = ({ role, activeTab, setActiveTab, user, onOpenChat, candi
 };
 
 const AdminIngestionView = ({ onRefresh }) => {
-    const [candidateName, setCandidateName] = useState("");
-    const [selectedFile, setSelectedFile] = useState(null);
-    const [isIngesting, setIsIngesting] = useState(false);
-    const [success, setSuccess] = useState(false);
+    const [fileStatus, setFileStatus] = useState(null);
+    const [extractedName, setExtractedName] = useState("");
+    const fileInputRef = useRef(null);
 
-    const handleIngest = async (e) => {
-        e.preventDefault();
-        if (!candidateName || !selectedFile) return;
+    const handleFileChange = async (fileOrEvent) => {
+      let file = null;
+      if (fileOrEvent?.target?.files) file = fileOrEvent.target.files[0];
+      else if (fileOrEvent instanceof File) file = fileOrEvent;
+      else return;
 
-        setIsIngesting(true);
-        try {
-            const response = await fetch(`${API_BASE_URL}/candidates/ingest`, {
-                method: 'POST',
-                headers: { 'Content-Type': 'application/json' },
-                body: JSON.stringify({ 
-                    name: candidateName, 
-                    fileName: selectedFile.name 
-                })
-            });
+      if (!file) return;
 
-            if (response.ok) {
-                setSuccess(true);
-                setCandidateName("");
-                setSelectedFile(null);
-                if (onRefresh) onRefresh();
-                setTimeout(() => setSuccess(false), 3000);
-            }
-        } catch (error) {
-            console.error("Ingestion failed:", error);
-        } finally {
-            setIsIngesting(false);
+      setFileStatus('uploading');
+
+      const formData = new FormData();
+      formData.append('resumePdf', file);
+      formData.append('name', 'Admin Upload');
+      formData.append('email', `admin-upload-${Date.now()}@hireai.com`);
+      formData.append('role', 'Any Role');
+
+      try {
+        const response = await fetch(`${API_BASE_URL}/candidates`, {
+          method: 'POST',
+          body: formData
+        });
+
+        if (!response.ok) {
+          const errorData = await response.json().catch(() => ({}));
+          throw new Error(errorData.message || 'Server returned an error');
         }
+
+        const data = await response.json();
+        setExtractedName(data.name || 'Extracted Candidate');
+        setFileStatus('extracted');
+        if (onRefresh) onRefresh();
+      } catch (error) {
+        console.error(error);
+        setFileStatus('error');
+      }
+    };
+
+    const handleZoneClick = () => {
+      fileInputRef.current.click();
+    };
+
+    const [isDragActive, setIsDragActive] = useState(false);
+
+    const handleDragOver = (e) => {
+      e.preventDefault();
+      setIsDragActive(true);
+    };
+
+    const handleDragLeave = (e) => {
+      e.preventDefault();
+      setIsDragActive(false);
+    };
+
+    const handleDrop = (e) => {
+      e.preventDefault();
+      setIsDragActive(false);
+      if (fileStatus === 'error' || fileStatus === null || fileStatus === 'extracted') {
+        if (e.dataTransfer.files && e.dataTransfer.files[0]) {
+          handleFileChange(e.dataTransfer.files[0]);
+        }
+      }
     };
 
     return (
@@ -263,6 +306,12 @@ const AdminIngestionView = ({ onRefresh }) => {
                         {selectedFile && <span style={{ fontSize: '0.75rem', color: '#3b82f6', fontWeight: '600' }}>File ready for AI extraction</span>}
                     </div>
                 </div>
+                <span style={{ color: 'white', fontWeight: '700', fontSize: '1.1rem' }}>
+                    {fileStatus === 'uploading' ? 'Analyzing Resume Content...' : 
+                     fileStatus === 'extracted' ? 'Resume Processed Successfully!' : 'Drop Resume to Analyze'}
+                </span>
+                <p style={{ color: '#64748b', fontSize: '0.9rem' }}>Supports PDF format up to 10MB</p>
+            </div>
 
                 <div style={{ display: 'flex', justifyContent: 'flex-end' }}>
                     <button 
@@ -362,7 +411,6 @@ const CandidateHome = ({ user, candidates }) => {
             Limited exposure to Cloud Infrastructure (Terraform/AWS) detected. Our AI has curated 5 specific prep modules in the Prep Hub to address this before your interview.
           </p>
         </div>
-      </div>
     </div>
   );
 };
@@ -379,67 +427,61 @@ const App = () => {
   const [activeChatCandidate, setActiveChatCandidate] = useState(null);
   const [candidates, setCandidates] = useState([]);
   const [jobs, setJobs] = useState([]);
+  const [recommendations, setRecommendations] = useState([]);
   const { user } = useUser();
   const isAdmin = ADMIN_EMAILS.includes(user?.primaryEmailAddress?.emailAddress);
+
+  const userEmail = user?.primaryEmailAddress?.emailAddress;
+  const userId = user?.id;
 
   const fetchData = React.useCallback(async () => {
     try {
       const [candRes, jobsRes] = await Promise.all([
-        fetch(`${API_BASE_URL}/candidates`),
-        fetch(`${API_BASE_URL}/jobs`)
+        fetch(`${API_BASE_URL}/candidates`, { cache: 'no-store' }),
+        fetch(`${API_BASE_URL}/jobs`, { cache: 'no-store' })
       ]);
       const candData = await candRes.json();
       const jobsData = await jobsRes.json();
+      
       setCandidates(candData);
       setJobs(jobsData);
+
+      // Compute the active candidate used by the dashboard
+      const dashboardCandidate = candData.find(c => c.email && userEmail && c.email === userEmail) || candData[0];
+
+      // Fetch AI recommendations for exact displayed candidate (including all=true for Job Board)
+      if (!isAdmin && dashboardCandidate) {
+        const urlParams = dashboardCandidate.email 
+          ? `email=${dashboardCandidate.email}&id=${dashboardCandidate.id}&all=true` 
+          : `id=${dashboardCandidate.id}&all=true`;
+          
+        const recRes = await fetch(`${API_BASE_URL}/candidates/recommendations?${urlParams}`);
+        const recData = await recRes.json();
+        if (Array.isArray(recData)) {
+          setRecommendations(recData);
+        }
+      }
     } catch (error) {
       console.error("Error fetching data:", error);
     }
-  }, []);
+  }, [isAdmin, userId, userEmail]);
 
   useEffect(() => {
     fetchData();
-  }, [fetchData]);
+  }, [fetchData, activeTab]);
 
   return (
     <>
       <SignedOut>
         <div className="login-bg">
           <div className="login-blob" style={{ top: '-10%', left: '-10%' }}></div>
-          <div className="login-blob" style={{ bottom: '-10%', right: '-10%', background: 'rgba(6, 182, 212, 0.1)' }}></div>
-          
-          <motion.div 
-            initial={{ opacity: 0, y: 40 }} 
-            animate={{ opacity: 1, y: 0 }} 
-            transition={{ duration: 0.8, ease: "easeOut" }}
-            className="login-card"
-          >
+          <motion.div initial={{ opacity: 0, y: 40 }} animate={{ opacity: 1, y: 0 }} className="login-card">
             <div style={{ display: 'inline-flex', padding: '18px', background: 'rgba(59, 130, 246, 0.1)', borderRadius: '20px', marginBottom: '2rem' }}>
               <Cpu size={36} color="#3b82f6" />
             </div>
-            
-            <h1 style={{ fontSize: '3rem', fontWeight: '800', marginBottom: '1rem', color: 'white', letterSpacing: '-0.04em' }}>
-              HireAI <span style={{ color: '#3b82f6' }}>Portal</span>
-            </h1>
-            
-            <p style={{ color: '#94a3b8', marginBottom: '3rem', fontSize: '1.1rem', lineHeight: '1.6' }}>
-                Bridging the gap between manual screening and AI-powered interview readiness.
-            </p>
-
-            <SignInButton mode="modal">
-              <button className="login-btn">
-                Enter Dashboard <ChevronRight size={20} style={{ marginLeft: '8px', verticalAlign: 'middle' }} />
-              </button>
-            </SignInButton>
-
-            <div style={{ marginTop: '3rem', display: 'flex', justifyContent: 'center', gap: '1.5rem', opacity: 0.6 }}>
-               <div style={{ display: 'flex', alignItems: 'center', gap: '8px', fontSize: '0.8rem', color: '#94a3b8' }}>
-                 <CheckCircle size={14} color="#10b981" /> AI Scoring
-               </div>
-               <div style={{ display: 'flex', alignItems: 'center', gap: '8px', fontSize: '0.8rem', color: '#94a3b8' }}>
-                 <CheckCircle size={14} color="#10b981" /> Smarter Prep
-               </div>
-            </div>
+            <h1 style={{ fontSize: '3rem', fontWeight: '800', marginBottom: '1rem', color: 'white' }}>HireAI Portal</h1>
+            <p style={{ color: '#94a3b8', marginBottom: '3rem' }}>Next-gen AI recruitment screening and preparation platform.</p>
+            <SignInButton mode="modal"><button className="login-btn">Enter Platform <ChevronRight size={20} /></button></SignInButton>
           </motion.div>
         </div>
       </SignedOut>
@@ -453,6 +495,7 @@ const App = () => {
           candidates={candidates}
           jobs={jobs}
           onRefresh={fetchData}
+          recommendations={recommendations}
           onOpenChat={(candidate) => {
             setActiveChatCandidate(candidate || null);
             setIsChatOpen(true);

@@ -5,7 +5,7 @@
   "type": "module",
   "scripts": {
     "frontend": "vite",
-    "backend": "node server/index.js",
+    "backend": "nodemon server/index.js",
     "dev": "concurrently \"npm run frontend\" \"npm run backend\"",
     "build": "vite build",
     "lint": "eslint .",
@@ -13,6 +13,8 @@
   },
   "dependencies": {
     "@clerk/clerk-react": "^5.61.4",
+    "@supabase/ssr": "^0.10.2",
+    "@supabase/supabase-js": "^2.103.0",
     "axios": "^1.15.0",
     "concurrently": "^9.2.1",
     "framer-motion": "^12.38.0",
@@ -29,6 +31,7 @@
     "eslint-plugin-react-hooks": "^7.0.1",
     "eslint-plugin-react-refresh": "^0.5.2",
     "globals": "^17.4.0",
+    "nodemon": "^3.1.14",
     "vite": "^8.0.1"
   }
 }

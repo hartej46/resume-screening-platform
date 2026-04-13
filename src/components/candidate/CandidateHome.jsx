@@ -2,7 +2,6 @@ import React from 'react';
 import { TrendingUp, AlertCircle, Cpu } from 'lucide-react';
 import { motion } from 'framer-motion';
 
-const CandidateHome = ({ user }) => {
   return (
     <div className="fadeIn" style={{ display: 'grid', gridTemplateColumns: '1.2fr 1.8fr', gap: '2rem' }}>
       {/* AI Fit Analysis Card */}
@@ -45,7 +44,6 @@ const CandidateHome = ({ user }) => {
             </div>
           </div>
         </div>
-      </div>
 
       {/* Right Column: Strengths + Gaps — matches screenshot exactly */}
       <div style={{ display: 'flex', flexDirection: 'column', gap: '1.75rem' }}>

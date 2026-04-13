@@ -11,7 +11,7 @@ import { motion } from 'framer-motion';
 const AdminDashboard = ({ candidates }) => {
     const totalIngestion = candidates.length;
     const avgMatchRate = totalIngestion > 0 
-        ? (candidates.reduce((acc, c) => acc + c.match, 0) / totalIngestion).toFixed(1) 
+        ? (candidates.reduce((acc, c) => acc + (c.match || 0), 0) / totalIngestion).toFixed(1) 
         : 0;
     const pendingReviews = candidates.filter(c => c.status === 'Initial Screen' || c.status === 'In Review').length;
     const topCandidates = candidates.filter(c => c.match >= 85).length;

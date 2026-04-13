@@ -11,18 +11,62 @@ import {
   User,
   Calendar,
   FileText,
-  BadgeCheck
+  BadgeCheck,
+  StickyNote,
+  Save,
+  ChevronDown,
+  ChevronUp,
+  Loader2
 } from 'lucide-react';
 import { motion, AnimatePresence } from 'framer-motion';
 
-const AdminResumeDatabase = ({ candidates, onOpenChat }) => {
+const AdminResumeDatabase = ({ candidates = [], onOpenChat, onRefresh }) => {
   const [searchTerm, setSearchTerm] = useState("");
+  const [editingNotes, setEditingNotes] = useState({}); // { candidateId: text }
+  const [expandedNotes, setExpandedNotes] = useState({}); // { candidateId: boolean }
+  const [isSaving, setIsSaving] = useState(null); // candidateId
 
   const filteredCandidates = candidates.filter(c =>
     c.name.toLowerCase().includes(searchTerm.toLowerCase()) ||
-    c.role.toLowerCase().includes(searchTerm.toLowerCase()) ||
-    c.skills.some(s => s.toLowerCase().includes(searchTerm.toLowerCase()))
+    (c.role && c.role.toLowerCase().includes(searchTerm.toLowerCase())) ||
+    (c.skills && c.skills.some(s => s.toLowerCase().includes(searchTerm.toLowerCase())))
   );
+
+  const handleSaveNotes = async (id) => {
+    const noteContent = editingNotes[id] !== undefined ? editingNotes[id] : (candidates.find(c => c.id === id)?.notes || "");
+    
+    setIsSaving(id);
+    try {
+        const response = await fetch(`http://localhost:5001/api/candidates/${id}`, {
+            method: 'PATCH',
+            headers: { 'Content-Type': 'application/json' },
+            body: JSON.stringify({ notes: noteContent })
+        });
+        if (response.ok) {
+            // Success - update parent if possible
+            if (onRefresh) onRefresh();
+            setIsSaving(null);
+        }
+    } catch (err) {
+        console.error("Save failed:", err);
+        setIsSaving(null);
+    }
+  };
+
+  const handleDelete = async (id) => {
+    if (!window.confirm("Are you sure you want to delete this candidate?")) return;
+    try {
+        const response = await fetch(`http://localhost:5001/api/candidates/${id}`, {
+            method: 'DELETE'
+        });
+        if (response.ok) {
+            // Ideally trigger onRefresh here, but for now we rely on the parent's refresh or state sync
+            window.location.reload(); 
+        }
+    } catch (err) {
+        console.error("Delete failed:", err);
+    }
+  };
 
   return (
     <div className="fadeIn">

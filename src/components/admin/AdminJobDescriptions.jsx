@@ -1,6 +1,6 @@
 import React, { useState } from 'react';
 import { 
-  Plus, 
+  Plus,
   MapPin, 
   Clock, 
   Users, 
@@ -9,9 +9,13 @@ import {
   ChevronRight,
   Sparkles,
   Trash2,
-  Edit3
+  Edit3,
+  UploadCloud,
+  FileText,
+  Loader2
 } from 'lucide-react';
 import { motion, AnimatePresence } from 'framer-motion';
+import LiveKeywordStream from '../shared/LiveKeywordStream';
 
 const inputStyle = {
   width: '100%',
@@ -31,6 +35,9 @@ const AdminJobDescriptions = ({ jobs: initialJobs = [], onRefresh }) => {
   const [showCreateForm, setShowCreateForm] = useState(false);
   const [isSubmitting, setIsSubmitting] = useState(false);
   const [newJob, setNewJob] = useState({ title: '', department: '', location: '', type: 'Full-Time', description: '', skills: '' });
+  const [isAnalyzing, setIsAnalyzing] = useState(false);
+  const [keywords, setKeywords] = useState([]);
+  const fileInputRef = React.useRef(null);
 
   const API_BASE_URL = "http://localhost:5001/api";
 

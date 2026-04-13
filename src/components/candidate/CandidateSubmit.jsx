@@ -1,12 +1,27 @@
 import React, { useState } from 'react';
 import { FileText, UploadCloud, CheckCircle, Cpu, ArrowRight } from 'lucide-react';
 import { motion, AnimatePresence } from 'framer-motion';
+import { useUser } from '@clerk/clerk-react';
+import LiveKeywordStream from '../shared/LiveKeywordStream';
 
-const CandidateSubmit = ({ setActiveTab }) => {
-  const [uploadState, setUploadState] = useState('idle'); // idle, uploading, analyzing, complete
+const CandidateSubmit = ({ setActiveTab, onRefresh }) => {
+  const [uploadState, setUploadState] = useState('idle'); // idle, uploading, complete, error
   const [score, setScore] = useState(0);
+  const [feedback, setFeedback] = useState([]);
+  const [reasoning, setReasoning] = useState('');
+  const [filename, setFilename] = useState('');
+  const fileInputRef = useRef(null);
+  const { user } = useUser();
 
-  const handleUpload = () => {
+  const handleFileChange = async (fileOrEvent) => {
+    let file = null;
+    if (fileOrEvent?.target?.files) file = fileOrEvent.target.files[0];
+    else if (fileOrEvent instanceof File) file = fileOrEvent;
+    else return;
+
+    if (!file) return;
+
+    setFilename(file.name);
     setUploadState('uploading');
     setTimeout(() => {
       setUploadState('analyzing');
@@ -47,6 +62,14 @@ const CandidateSubmit = ({ setActiveTab }) => {
             padding: '3rem 2rem'
           }}
         >
+          <input 
+            type="file" 
+            ref={fileInputRef} 
+            onChange={handleFileChange} 
+            style={{ display: 'none' }} 
+            accept="application/pdf"
+          />
+          <LiveKeywordStream isAnalyzing={uploadState === 'uploading' || uploadState === 'analyzing'} />
           <AnimatePresence mode="wait">
             {uploadState === 'idle' && (
               <motion.div key="idle" initial={{ opacity: 0 }} animate={{ opacity: 1 }} exit={{ opacity: 0 }} style={{ textAlign: 'center' }}>

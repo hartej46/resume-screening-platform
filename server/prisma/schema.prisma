@@ -12,6 +12,7 @@ datasource db {
 
 model Candidate {
   id           Int           @id @default(autoincrement())
+  email        String?       @unique
   name         String
   role         String
   match        Int
@@ -20,6 +21,8 @@ model Candidate {
   skills       String[]
   summary      String?
   file         String?
+  notes        String?       @default("")
+  feedback     String[]      @default([])
   createdAt    DateTime      @default(now())
   updatedAt    DateTime      @updatedAt
   applications Application[]
