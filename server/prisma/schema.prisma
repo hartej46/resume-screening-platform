@@ -12,7 +12,7 @@ datasource db {
 
 model Candidate {
   id           Int           @id @default(autoincrement())
-  email        String?       @unique
+  email        String        @unique
   name         String
   role         String
   match        Int
@@ -20,9 +20,10 @@ model Candidate {
   applied      String
   skills       String[]
   summary      String?
+  feedback     String?
   file         String?
+  detailedAnalysis Json?
   notes        String?       @default("")
-  feedback     String[]      @default([])
   createdAt    DateTime      @default(now())
   updatedAt    DateTime      @updatedAt
   applications Application[]
@@ -38,9 +39,16 @@ model Job {
   posted      String
   applicants  Int      @default(0)
   status      String
-  description String
-  skills      String[]
-  createdAt   DateTime @default(now())
+  description      String
+  skills           String[]
+  benefits         String?  // Rich info
+  interviewProcess String?  // Rich info
+  culture          String?  // Rich info
+  responsibilities String?  // Key responsibilities
+  requirements     String?  // Qualifications
+  bonusPoints      String?  // Bonus / nice-to-have
+  notes            String?  @default("")
+  createdAt        DateTime @default(now())
   updatedAt   DateTime @updatedAt
 }
 

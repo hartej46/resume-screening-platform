@@ -1,15 +1,18 @@
 /**
  * Service to interact with Hugging Face Inference API
+ * Using OpenAI-compatible endpoint for maximum stability
  */
 
 const HF_TOKEN = import.meta.env.VITE_HF_TOKEN;
-const MODEL_ID = "zai-org/GLM-5.1-FP8:zai-org";
+// Switching to a more stable, widely available Instruct model
+const MODEL_ID = "mistralai/Mistral-7B-Instruct-v0.2";
 const API_URL = "https://router.huggingface.co/v1/chat/completions";
 
 export const queryAI = async (messages) => {
-    console.log("Querying AI with token:", HF_TOKEN ? "Present (Starts with " + HF_TOKEN.slice(0, 4) + ")" : "Missing");
+    console.log("Querying HireAI with token:", HF_TOKEN ? "Present" : "Missing");
+    
     if (!HF_TOKEN) {
-        throw new Error("Hugging Face token is missing in environment variables. Please restart your dev server after adding it to .env.");
+        throw new Error("Hugging Face token is missing (VITE_HF_TOKEN). Please check your .env file.");
     }
 
     try {
@@ -22,45 +25,54 @@ export const queryAI = async (messages) => {
             body: JSON.stringify({
                 model: MODEL_ID,
                 messages: messages,
-                max_tokens: 500,
+                max_tokens: 800,
                 temperature: 0.7,
+                stream: false
             }),
         });
 
         if (!response.ok) {
-            const errorData = await response.json();
-            throw new Error(errorData.error || `API responded with status ${response.status}`);
+            const errorText = await response.text();
+            console.error("HF API Error Response:", errorText);
+            throw new Error(`AI Service Error: ${response.status} - ${errorText.slice(0, 100)}`);
         }
 
         const result = await response.json();
-        console.log("AI Response full result:", result);
         
         if (!result.choices || result.choices.length === 0) {
-            throw new Error("AI returned empty choices. Please try a different prompt or check model availability.");
+            throw new Error("AI returned an empty response. The model might be overloaded.");
         }
         
         const message = result.choices[0].message;
-        if (!message || (!message.content && !message.reasoning_content)) {
-            throw new Error("AI returned a response with no content or reasoning.");
+        if (!message || !message.content) {
+            // Some models return reasoning_content in a different field, but for Mistral we expect content
+            if (message.reasoning_content) {
+                return { content: message.reasoning_content };
+            }
+            throw new Error("AI returned a message with no content.");
         }
         
         return message;
     } catch (error) {
-        console.error("AI Query Error:", error);
+        console.error("HireAI Service Critical Error:", error);
         throw error;
     }
 };
 
-
 export const getSystemPrompt = (candidate) => {
+    const basePrompt = "You are HireAI Copilot, a high-performance recruitment intelligence engine. Your tone is professional, technical, and analytical. You help recruiters find the best talent by analyzing deep skill overlaps.";
+    
     if (!candidate) {
-        return "You are HireAI Copilot, a helpful recruitment assistant. Help the user screen resumes, compare candidates, and generate interview questions.";
+        return `${basePrompt} You have access to the entire candidate repository. Focus on comparing candidates and identifying top talent based on roles.`;
     }
 
-    return `You are HireAI Copilot. You are currently analyzing ${candidate.name}, a ${candidate.role}. 
-Candidate Background: ${candidate.summary}
-Key Skills: ${candidate.skills.join(", ")}
-AI Match Score: ${candidate.match}%
-
-Your goal is to provide deep insights about this specific candidate. When asked about them, use this specific data to answer. If the user asks general questions, prioritize this candidate's context.`;
+    return `${basePrompt} 
+    CONTEXTUAL ANALYSIS: You are currently focused on ${candidate.name} (${candidate.role}).
+    CANDIDATE DATA:
+    - Summary: ${candidate.summary}
+    - Skills: ${candidate.skills.join(", ")}
+    - AI Score: ${candidate.match}%
+    - HR Notes: ${candidate.notes || "No internal notes yet."}
+    
+    Directly answer questions about this candidate using the data above. If asked for interview questions, tailor them specifically to their skills and gaps.`;
 };

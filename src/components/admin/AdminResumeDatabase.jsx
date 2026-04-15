@@ -12,216 +12,198 @@ import {
   Calendar,
   FileText,
   BadgeCheck,
-  StickyNote,
   Save,
-  ChevronDown,
-  ChevronUp,
-  Loader2
+  StickyNote,
+  ChevronRight
 } from 'lucide-react';
 import { motion, AnimatePresence } from 'framer-motion';
+import NotesModal from '../shared/NotesModal';
+import TalentProfileModal from '../shared/TalentProfileModal';
 
-const AdminResumeDatabase = ({ candidates = [], onOpenChat, onRefresh }) => {
+const AdminResumeDatabase = ({ candidates, onOpenChat, onRefresh }) => {
   const [searchTerm, setSearchTerm] = useState("");
-  const [editingNotes, setEditingNotes] = useState({}); // { candidateId: text }
-  const [expandedNotes, setExpandedNotes] = useState({}); // { candidateId: boolean }
-  const [isSaving, setIsSaving] = useState(null); // candidateId
+  const [savingId, setSavingId] = useState(null);
+  const [selectedCandidateForNotes, setSelectedCandidateForNotes] = useState(null);
+  const [selectedCandidateForProfile, setSelectedCandidateForProfile] = useState(null);
 
-  const filteredCandidates = candidates.filter(c =>
-    c.name.toLowerCase().includes(searchTerm.toLowerCase()) ||
-    (c.role && c.role.toLowerCase().includes(searchTerm.toLowerCase())) ||
-    (c.skills && c.skills.some(s => s.toLowerCase().includes(searchTerm.toLowerCase())))
-  );
-
-  const handleSaveNotes = async (id) => {
-    const noteContent = editingNotes[id] !== undefined ? editingNotes[id] : (candidates.find(c => c.id === id)?.notes || "");
+  const filteredCandidates = (Array.isArray(candidates) ? candidates : []).filter(c => {
+    const name = c?.name || "";
+    const role = c?.role || "";
+    const skills = Array.isArray(c?.skills) ? c.skills : [];
     
-    setIsSaving(id);
+    return name.toLowerCase().includes(searchTerm.toLowerCase()) ||
+           role.toLowerCase().includes(searchTerm.toLowerCase()) ||
+           skills.some(s => s.toLowerCase().includes(searchTerm.toLowerCase()));
+  });
+
+  const handleSaveNotes = async (notes) => {
+    if (!selectedCandidateForNotes) return;
+    const id = selectedCandidateForNotes.id;
+    setSavingId(id);
     try {
-        const response = await fetch(`http://localhost:5001/api/candidates/${id}`, {
+        const res = await fetch(`http://localhost:5001/api/candidates/${id}`, {
             method: 'PATCH',
             headers: { 'Content-Type': 'application/json' },
-            body: JSON.stringify({ notes: noteContent })
+            body: JSON.stringify({ notes })
         });
-        if (response.ok) {
-            // Success - update parent if possible
+        if (res.ok) {
             if (onRefresh) onRefresh();
-            setIsSaving(null);
+            setSelectedCandidateForNotes(null);
         }
-    } catch (err) {
-        console.error("Save failed:", err);
-        setIsSaving(null);
+    } catch (error) {
+        console.error("Error saving notes:", error);
+    } finally {
+        setSavingId(null);
     }
   };
 
-  const handleDelete = async (id) => {
-    if (!window.confirm("Are you sure you want to delete this candidate?")) return;
-    try {
-        const response = await fetch(`http://localhost:5001/api/candidates/${id}`, {
-            method: 'DELETE'
-        });
-        if (response.ok) {
-            // Ideally trigger onRefresh here, but for now we rely on the parent's refresh or state sync
-            window.location.reload(); 
-        }
-    } catch (err) {
-        console.error("Delete failed:", err);
+  const handleDownload = (e, candidate) => {
+    e.stopPropagation();
+    if (candidate.file) {
+        window.open(candidate.file, '_blank');
+    } else {
+        alert("No resume file available for this record.");
     }
   };
 
   return (
     <div className="fadeIn">
-      {/* Search + AI CTA */}
-      <div style={{ display: 'flex', justifyContent: 'space-between', alignItems: 'center', marginBottom: '2.5rem', gap: '1.5rem' }}>
-        <div style={{ position: 'relative', flex: 1, maxWidth: '560px' }}>
-          <Search style={{ position: 'absolute', left: '14px', top: '50%', transform: 'translateY(-50%)', color: '#9ca3af' }} size={18} />
-          <input
-            type="text"
-            placeholder="Search by name, role, or skill..."
+      {/* Search Header */}
+      <div style={{ display: 'flex', justifyContent: 'space-between', alignItems: 'center', marginBottom: '3rem', gap: '2rem' }}>
+        <div style={{ position: 'relative', flex: 1, maxWidth: '600px' }}>
+          <Search style={{ position: 'absolute', left: '16px', top: '50%', transform: 'translateY(-50%)', color: 'var(--text-muted)' }} size={20} />
+          <input 
+            type="text" 
+            placeholder="Search by name, role, or skill..." 
             value={searchTerm}
             onChange={(e) => setSearchTerm(e.target.value)}
-            style={{
-              width: '100%',
-              background: 'white',
-              border: '1px solid #e5e7eb',
-              padding: '0.85rem 1rem 0.85rem 2.75rem',
-              borderRadius: '14px',
-              color: '#111827',
-              fontSize: '0.9rem',
-              outline: 'none',
-              boxShadow: '0 1px 3px rgba(0,0,0,0.05)',
-              transition: 'border-color 0.2s, box-shadow 0.2s'
-            }}
-            onFocus={e => { e.target.style.borderColor = '#3b82f6'; e.target.style.boxShadow = '0 0 0 3px rgba(59,130,246,0.1)'; }}
-            onBlur={e => { e.target.style.borderColor = '#e5e7eb'; e.target.style.boxShadow = '0 1px 3px rgba(0,0,0,0.05)'; }}
+            style={{ 
+              width: '100%', 
+              background: 'var(--card-bg)', 
+              border: '1px solid var(--card-border)', 
+              padding: '1.25rem 1.25rem 1.25rem 3.5rem', 
+              borderRadius: '16px', 
+              color: 'white',
+              fontSize: '1rem',
+              outline: 'none'
+            }} 
           />
         </div>
 
-        <button
-          onClick={() => onOpenChat()}
-          className="btn-primary"
-          style={{ padding: '0.85rem 1.75rem', whiteSpace: 'nowrap' }}
-        >
-          <Bot size={18} /> ASK HireAI Intelligence
+        <button onClick={() => onOpenChat()} className="btn-action-pro btn-primary" style={{ padding: '1.25rem 2.5rem' }}>
+            <Bot size={20} /> ASK HireAI Intelligence
         </button>
       </div>
 
-      {/* Header */}
-      <div style={{ display: 'flex', justifyContent: 'space-between', alignItems: 'center', marginBottom: '1.5rem' }}>
-        <div style={{ display: 'flex', alignItems: 'center', gap: '10px' }}>
-          <div style={{ padding: '8px', background: 'rgba(59,130,246,0.1)', borderRadius: '10px' }}>
-            <History size={18} color="#3b82f6" />
-          </div>
-          <div>
-            <h3 style={{ color: 'var(--text-primary)', fontSize: '1.3rem', fontWeight: '800', fontFamily: 'Outfit, sans-serif' }}>Candidate Repository</h3>
-            <p style={{ color: 'var(--text-secondary)', fontSize: '0.8rem' }}>AI-Summarized talent pool index</p>
-          </div>
-          <span style={{ marginLeft: '8px', padding: '4px 12px', background: '#f3f4f6', borderRadius: '8px', fontSize: '0.72rem', color: '#6b7280', fontWeight: '700', border: '1px solid #e5e7eb' }}>
-            {filteredCandidates.length} Candidates
-          </span>
+      <div style={{ display: 'flex', justifyContent: 'space-between', alignItems: 'center', marginBottom: '2.5rem' }}>
+        <div style={{ display: 'flex', alignItems: 'center', gap: '14px' }}>
+            <div style={{ padding: '10px', background: 'hsla(217, 91%, 60%, 0.1)', borderRadius: '12px', color: 'var(--primary)' }}><History size={20} /></div>
+            <div>
+                <h3 style={{ color: 'white', fontSize: '1.75rem', fontWeight: '800', marginBottom: '2px' }}>Candidate Repository</h3>
+                <p style={{ color: 'var(--text-dim)', fontSize: '0.9rem' }}>Comprehensive AI talent database</p>
+            </div>
+            <span className="pill-capsule" style={{ marginLeft: '12px', background: 'var(--card-bg)', border: '1px solid var(--card-border)' }}>
+                {filteredCandidates.length} Profiles
+            </span>
         </div>
-        <button className="btn-action-pro" style={{ background: 'white', color: '#6b7280', border: '1px solid #e5e7eb' }}>
-          <Filter size={16} /> Filters
-        </button>
       </div>
 
-      {/* Card Grid */}
-      <div style={{ display: 'grid', gridTemplateColumns: 'repeat(auto-fill, minmax(360px, 1fr))', gap: '1.5rem' }}>
-        <AnimatePresence>
-          {filteredCandidates.map((c, i) => (
-            <motion.div
-              layout
-              key={c.id}
-              initial={{ opacity: 0, y: 16 }}
-              animate={{ opacity: 1, y: 0 }}
-              exit={{ opacity: 0, scale: 0.95 }}
-              transition={{ duration: 0.25, delay: i * 0.04 }}
-              className="card"
-              style={{
-                padding: '1.75rem',
-                display: 'flex',
-                flexDirection: 'column',
-                gap: '1.25rem',
-                position: 'relative',
-                overflow: 'hidden'
-              }}
-            >
-              {/* Score Badge */}
-              <div style={{ position: 'absolute', top: '1.25rem', right: '1.25rem', display: 'flex', alignItems: 'center', gap: '5px', background: c.match >= 85 ? 'rgba(16,185,129,0.1)' : 'rgba(59,130,246,0.1)', padding: '5px 11px', borderRadius: '10px', border: `1px solid ${c.match >= 85 ? 'rgba(16,185,129,0.2)' : 'rgba(59,130,246,0.2)'}` }}>
-                <BadgeCheck size={13} color={c.match >= 85 ? '#10b981' : '#3b82f6'} />
-                <span style={{ fontSize: '0.82rem', fontWeight: '900', color: c.match >= 85 ? '#10b981' : '#3b82f6' }}>{c.match}%</span>
-              </div>
+      {/* Repository Grid */}
+      <div style={{ display: 'grid', gridTemplateColumns: 'repeat(auto-fill, minmax(400px, 1fr))', gap: '2.5rem' }}>
+        <AnimatePresence mode="popLayout">
+            {filteredCandidates.map(c => (
+              <motion.div 
+                layout
+                key={c.id}
+                initial={{ opacity: 0, scale: 0.98 }}
+                animate={{ opacity: 1, scale: 1 }}
+                exit={{ opacity: 0, scale: 0.95 }}
+                className="glass-card"
+                onClick={() => setSelectedCandidateForProfile(c)}
+                style={{ 
+                    padding: '1.75rem', 
+                    display: 'flex', 
+                    flexDirection: 'column', 
+                    gap: '1.5rem',
+                    cursor: 'pointer',
+                    transition: 'all 0.3s',
+                    position: 'relative'
+                }}
+              >
+                <div style={{ position: 'absolute', top: '1.5rem', right: '1.5rem', display: 'flex', alignItems: 'center', gap: '8px', background: 'hsla(217, 91%, 60%, 0.1)', padding: '6px 12px', borderRadius: '12px', border: '1px solid hsla(217, 91%, 60% , 0.2)' }}>
+                    <BadgeCheck size={14} color="var(--primary)" />
+                    <span style={{ fontSize: '0.85rem', fontWeight: '900', color: 'var(--primary)' }}>{c.match}%</span>
+                </div>
 
-              {/* Profile Header */}
-              <div style={{ display: 'flex', alignItems: 'center', gap: '14px' }}>
-                <div style={{ width: '52px', height: '52px', background: 'linear-gradient(135deg, #3b82f6 0%, #8b5cf6 100%)', borderRadius: '14px', display: 'flex', alignItems: 'center', justifyContent: 'center', color: 'white', fontWeight: '800', fontSize: '1.1rem', fontFamily: 'Outfit, sans-serif', flexShrink: 0 }}>
-                  {c.name[0]}
+                <div style={{ display: 'flex', alignItems: 'center', gap: '1.25rem' }}>
+                    <div style={{ width: '56px', height: '56px', background: 'linear-gradient(135deg, var(--primary) 0%, var(--secondary) 100%)', borderRadius: '16px', display: 'flex', alignItems: 'center', justifyContent: 'center' }}>
+                        <User size={28} color="white" />
+                    </div>
+                    <div>
+                        <h4 style={{ color: 'white', fontSize: '1.25rem', fontWeight: '800', marginBottom: '2px' }}>{c.name}</h4>
+                        <div style={{ display: 'flex', alignItems: 'center', gap: '8px', color: 'var(--text-dim)', fontSize: '0.85rem', fontWeight: '600' }}>
+                            <ArrowUpRight size={14} /> {c.role}
+                        </div>
+                    </div>
                 </div>
-                <div>
-                  <h4 style={{ color: 'var(--text-primary)', fontSize: '1.05rem', fontWeight: '800', marginBottom: '3px', fontFamily: 'Outfit, sans-serif' }}>{c.name}</h4>
-                  <div style={{ display: 'flex', alignItems: 'center', gap: '5px', color: '#6b7280', fontSize: '0.78rem' }}>
-                    <ArrowUpRight size={13} /> {c.role}
-                  </div>
-                </div>
-              </div>
 
-              {/* Summary */}
-              <div style={{ background: '#f9fafb', padding: '0.875rem', borderRadius: '10px', border: '1px solid #f3f4f6' }}>
-                <div style={{ display: 'flex', alignItems: 'center', gap: '6px', color: '#3b82f6', fontSize: '0.67rem', fontWeight: '800', textTransform: 'uppercase', marginBottom: '6px', letterSpacing: '0.06em' }}>
-                  <FileText size={11} /> AI Abstract
+                {/* Always-visible punchy summary */}
+                <div style={{ background: 'hsla(255, 255%, 255%, 0.02)', padding: '1rem', borderRadius: '14px', border: '1px solid var(--card-border)' }}>
+                    <div style={{ display: 'flex', alignItems: 'center', gap: '8px', color: 'var(--primary)', fontSize: '0.65rem', fontWeight: '900', textTransform: 'uppercase', marginBottom: '8px', letterSpacing: '0.08em' }}>
+                        <FileText size={14} /> AI SNAPSHOT
+                    </div>
+                    <p style={{ 
+                        color: 'var(--text-dim)', 
+                        fontSize: '0.9rem', 
+                        lineHeight: '1.5',
+                        display: '-webkit-box',
+                        WebkitLineClamp: 2,
+                        WebkitBoxOrient: 'vertical',
+                        overflow: 'hidden'
+                    }}>
+                        {c.summary}
+                    </p>
                 </div>
-                <p style={{ color: '#374151', fontSize: '0.85rem', lineHeight: '1.6' }}>{c.summary}</p>
-              </div>
 
-              {/* Skills */}
-              <div style={{ display: 'flex', flexWrap: 'wrap', gap: '6px' }}>
-                {c.skills.map(skill => (
-                  <span key={skill} style={{ padding: '4px 10px', background: '#eff6ff', color: '#3b82f6', borderRadius: '7px', fontSize: '0.72rem', fontWeight: '600', border: '1px solid #dbeafe' }}>
-                    {skill}
-                  </span>
-                ))}
-              </div>
-
-              {/* Footer */}
-              <div style={{ display: 'flex', justifyContent: 'space-between', alignItems: 'center', marginTop: 'auto', paddingTop: '1.25rem', borderTop: '1px solid #f3f4f6' }}>
-                <div style={{ display: 'flex', alignItems: 'center', gap: '5px', color: '#9ca3af', fontSize: '0.72rem' }}>
-                  <Calendar size={12} /> Processed {c.applied}
+                <div style={{ display: 'flex', justifyContent: 'space-between', alignItems: 'center', marginTop: 'auto', paddingTop: '1.25rem', borderTop: '1px solid var(--card-border)' }}>
+                    <div style={{ color: 'var(--text-muted)', fontSize: '0.8rem', fontWeight: '600' }}>{c.applied}</div>
+                    
+                    <div style={{ display: 'flex', gap: '8px' }}>
+                        <button onClick={(e) => { e.stopPropagation(); setSelectedCandidateForNotes(c); }} className="btn-action-pro btn-ghost" style={{ width: '38px', height: '38px', padding: 0, position: 'relative' }}>
+                            <StickyNote size={18} />
+                            {c.notes && c.notes.trim() !== "" && (
+                                <span className="pulse" style={{ position: 'absolute', top: '7px', right: '7px', width: '6px', height: '6px', background: 'var(--primary)', borderRadius: '50%' }}></span>
+                            )}
+                        </button>
+                        <button onClick={(e) => { e.stopPropagation(); onOpenChat(c); }} className="btn-action-pro btn-ghost" style={{ width: '38px', height: '38px', padding: 0 }}>
+                            <MessageSquare size={18} />
+                        </button>
+                        <button onClick={(e) => handleDownload(e, c)} className="btn-action-pro btn-ghost" style={{ width: '38px', height: '38px', padding: 0 }}>
+                            <Download size={18} />
+                        </button>
+                        <button onClick={(e) => { e.stopPropagation(); }} className="btn-action-pro" style={{ width: '38px', height: '38px', padding: 0, background: 'hsla(0, 85%, 60%, 0.1)', color: 'var(--danger)', border: '1px solid hsla(0, 85%, 60%, 0.1)' }}><Trash2 size={18} /></button>
+                    </div>
                 </div>
-                <div style={{ display: 'flex', gap: '8px' }}>
-                  <button
-                    onClick={() => onOpenChat(c)}
-                    title="Chat with AI"
-                    style={{ background: '#eff6ff', color: '#3b82f6', border: '1px solid #dbeafe', width: '36px', height: '36px', borderRadius: '9px', display: 'flex', alignItems: 'center', justifyContent: 'center', cursor: 'pointer', transition: 'all 0.2s' }}
-                  >
-                    <MessageSquare size={16} />
-                  </button>
-                  <button
-                    title="Download Resume"
-                    style={{ background: '#f9fafb', color: '#6b7280', border: '1px solid #e5e7eb', width: '36px', height: '36px', borderRadius: '9px', display: 'flex', alignItems: 'center', justifyContent: 'center', cursor: 'pointer' }}
-                  >
-                    <Download size={16} />
-                  </button>
-                  <button
-                    title="Remove Record"
-                    style={{ background: 'rgba(239,68,68,0.08)', color: '#ef4444', border: '1px solid rgba(239,68,68,0.18)', width: '36px', height: '36px', borderRadius: '9px', display: 'flex', alignItems: 'center', justifyContent: 'center', cursor: 'pointer' }}
-                  >
-                    <Trash2 size={16} />
-                  </button>
-                </div>
-              </div>
-            </motion.div>
-          ))}
+              </motion.div>
+            ))}
         </AnimatePresence>
       </div>
 
-      {filteredCandidates.length === 0 && (
-        <div style={{ padding: '6rem 4rem', textAlign: 'center', color: '#9ca3af', background: 'white', borderRadius: '20px', border: '2px dashed #e5e7eb', marginTop: '2rem', boxShadow: '0 1px 3px rgba(0,0,0,0.04)' }}>
-          <div style={{ marginBottom: '1rem' }}>
-            <Search size={44} style={{ opacity: 0.3, color: '#6b7280' }} />
-          </div>
-          <h4 style={{ color: '#374151', fontSize: '1.15rem', marginBottom: '0.5rem', fontWeight: '700' }}>No talent matches found</h4>
-          <p style={{ fontSize: '0.9rem' }}>Try adjusting your search terms or filters to find candidates.</p>
-        </div>
-      )}
+      {/* Global Modals */}
+      <NotesModal 
+        isOpen={!!selectedCandidateForNotes}
+        onClose={() => setSelectedCandidateForNotes(null)}
+        onSave={handleSaveNotes}
+        initialValue={selectedCandidateForNotes?.notes || ""}
+        title={`Notes for ${selectedCandidateForNotes?.name}`}
+        isSaving={savingId === selectedCandidateForNotes?.id}
+      />
+
+      <TalentProfileModal 
+        isOpen={!!selectedCandidateForProfile}
+        onClose={() => setSelectedCandidateForProfile(null)}
+        candidate={selectedCandidateForProfile}
+      />
     </div>
   );
 };

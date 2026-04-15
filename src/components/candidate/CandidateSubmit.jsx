@@ -1,5 +1,5 @@
-import React, { useState } from 'react';
-import { FileText, UploadCloud, CheckCircle, Cpu, ArrowRight } from 'lucide-react';
+import React, { useState, useRef } from 'react';
+import { FileText, UploadCloud, CheckCircle, Cpu, Loader2, ArrowRight, AlertCircle, Brain } from 'lucide-react';
 import { motion, AnimatePresence } from 'framer-motion';
 import { useUser } from '@clerk/clerk-react';
 import LiveKeywordStream from '../shared/LiveKeywordStream';
@@ -7,164 +7,231 @@ import LiveKeywordStream from '../shared/LiveKeywordStream';
 const CandidateSubmit = ({ setActiveTab, onRefresh }) => {
   const [uploadState, setUploadState] = useState('idle'); // idle, uploading, complete, error
   const [score, setScore] = useState(0);
-  const [feedback, setFeedback] = useState([]);
-  const [reasoning, setReasoning] = useState('');
-  const [filename, setFilename] = useState('');
+  const [summary, setSummary] = useState("");
+  const [extractedName, setExtractedName] = useState("");
+  const [isDragActive, setIsDragActive] = useState(false);
   const fileInputRef = useRef(null);
   const { user } = useUser();
 
-  const handleFileChange = async (fileOrEvent) => {
-    let file = null;
-    if (fileOrEvent?.target?.files) file = fileOrEvent.target.files[0];
-    else if (fileOrEvent instanceof File) file = fileOrEvent;
-    else return;
-
+  const handleFileChange = async (e) => {
+    const file = e.target.files[0];
     if (!file) return;
+    uploadFile(file);
+  };
 
-    setFilename(file.name);
+  const uploadFile = async (file) => {
+    if (file.type !== 'application/pdf') {
+        alert("Please upload a PDF file.");
+        return;
+    }
+
     setUploadState('uploading');
-    setTimeout(() => {
-      setUploadState('analyzing');
+    setScore(0);
+    setSummary("");
+    
+    const formData = new FormData();
+    formData.append('resumePdf', file);
+    formData.append('email', user?.primaryEmailAddress?.emailAddress);
+    formData.append('name', user?.fullName || "Candidate");
+    formData.append('role', "Software Engineer Applicant");
+
+    try {
+      const response = await fetch('http://localhost:5001/api/candidates', {
+        method: 'POST',
+        body: formData
+      });
+
+      if (!response.ok) throw new Error("Upload failed");
+
+      const data = await response.json();
+      setExtractedName(data.name);
+      
+      // Animate score display
       let currentScore = 0;
+      const targetScore = data.match || 0;
       const interval = setInterval(() => {
-        currentScore += 2;
+        currentScore += 1;
         setScore(currentScore);
-        if (currentScore >= 88) {
+        if (currentScore >= targetScore) {
           clearInterval(interval);
           setUploadState('complete');
+          setSummary(data.summary || "");
+          if (onRefresh) onRefresh();
         }
-      }, 40);
-    }, 2000);
+      }, 15);
+
+    } catch (error) {
+      console.error("Upload error:", error);
+      setUploadState('error');
+    }
+  };
+
+  const handleDrag = (e) => {
+    e.preventDefault();
+    e.stopPropagation();
+    if (e.type === "dragenter" || e.type === "dragover") {
+      setIsDragActive(true);
+    } else if (e.type === "dragleave") {
+      setIsDragActive(false);
+    }
+  };
+
+  const handleDrop = (e) => {
+    e.preventDefault();
+    e.stopPropagation();
+    setIsDragActive(false);
+    if (e.dataTransfer.files && e.dataTransfer.files[0]) {
+      uploadFile(e.dataTransfer.files[0]);
+    }
   };
 
   return (
     <div className="fadeIn">
-      <div style={{ marginBottom: '2.5rem' }}>
-        <h2 style={{ color: 'var(--text-primary)', fontSize: '1.6rem', fontWeight: '800', fontFamily: 'Outfit, sans-serif' }}>Submit Application</h2>
-        <p style={{ color: 'var(--text-secondary)', marginTop: '0.4rem', fontSize: '0.9rem' }}>Upload your resume below. Our AI will automatically parse your experience.</p>
+      <div style={{ marginBottom: '3.5rem' }}>
+        <h2 style={{ color: 'white', fontSize: '2.25rem', fontWeight: '800' }}>Submission Portal</h2>
+        <p style={{ color: 'var(--text-dim)', marginTop: '0.75rem', fontSize: '1.1rem' }}>
+            Our AI analyzes your expertise in real-time to match you with top-tier opportunities.
+        </p>
       </div>
 
-      <div style={{ display: 'grid', gridTemplateColumns: 'minmax(0,1fr) minmax(0,1fr)', gap: '1.75rem' }}>
+      <input 
+        type="file" 
+        ref={fileInputRef} 
+        style={{ display: 'none' }} 
+        accept="application/pdf" 
+        onChange={handleFileChange}
+      />
+
+      <div style={{ display: 'grid', gridTemplateColumns: '1.4fr 1fr', gap: '3rem', alignItems: 'start' }}>
         {/* Upload Zone */}
-        <div
-          onClick={uploadState === 'idle' ? handleUpload : undefined}
-          className="card"
-          style={{
-            background: uploadState === 'idle' ? 'white' : 'white',
-            border: uploadState !== 'idle' ? '2px solid #bfdbfe' : '2px dashed #93c5fd',
-            cursor: uploadState === 'idle' ? 'pointer' : 'default',
-            transition: 'all 0.3s',
-            minHeight: '340px',
-            display: 'flex',
-            flexDirection: 'column',
-            alignItems: 'center',
-            justifyContent: 'center',
-            padding: '3rem 2rem'
-          }}
+        <motion.div 
+            onDragEnter={handleDrag}
+            onDragLeave={handleDrag}
+            onDragOver={handleDrag}
+            onDrop={handleDrop}
+            onClick={() => uploadState !== 'uploading' && fileInputRef.current?.click()}
+            whileHover={uploadState === 'idle' ? { scale: 1.01 } : {}}
+            className="glass-card"
+            style={{ 
+                border: isDragActive ? '2px solid var(--primary)' : '2px dashed var(--card-border)', 
+                background: isDragActive ? 'hsla(217, 91%, 60%, 0.05)' : 'var(--card-bg)',
+                display: 'flex', 
+                flexDirection: 'column', 
+                alignItems: 'center', 
+                justifyContent: 'center', 
+                cursor: uploadState !== 'uploading' ? 'pointer' : 'default',
+                minHeight: '400px',
+                position: 'relative',
+                transition: 'all 0.3s cubic-bezier(0.4, 0, 0.2, 1)'
+            }}
         >
-          <input 
-            type="file" 
-            ref={fileInputRef} 
-            onChange={handleFileChange} 
-            style={{ display: 'none' }} 
-            accept="application/pdf"
-          />
-          <LiveKeywordStream isAnalyzing={uploadState === 'uploading' || uploadState === 'analyzing'} />
           <AnimatePresence mode="wait">
             {uploadState === 'idle' && (
-              <motion.div key="idle" initial={{ opacity: 0 }} animate={{ opacity: 1 }} exit={{ opacity: 0 }} style={{ textAlign: 'center' }}>
-                <div style={{ background: '#eff6ff', padding: '20px', borderRadius: '50%', display: 'inline-block', marginBottom: '1.5rem' }}>
-                  <UploadCloud size={44} color="#3b82f6" />
+              <motion.div key="idle" initial={{ opacity: 0, y: 10 }} animate={{ opacity: 1, y: 0 }} exit={{ opacity: 0, y: -10 }} style={{ textAlign: 'center' }}>
+                <div style={{ background: 'var(--primary-glow)', padding: '24px', borderRadius: '50%', display: 'inline-block', marginBottom: '2rem' }}>
+                    <UploadCloud size={56} color="var(--primary)" />
                 </div>
-                <h3 style={{ color: 'var(--text-primary)', fontSize: '1.2rem', fontWeight: '800', marginBottom: '0.5rem', fontFamily: 'Outfit, sans-serif' }}>Drag &amp; Drop Resume</h3>
-                <p style={{ color: 'var(--text-secondary)', fontSize: '0.88rem' }}>Supports PDF, DOCX (Max 5MB)</p>
-                <div style={{ marginTop: '1.5rem', padding: '0.6rem 1.5rem', background: '#3b82f6', color: 'white', borderRadius: '10px', fontSize: '0.85rem', fontWeight: '700', display: 'inline-block' }}>
-                  Browse File
-                </div>
+                <h3 style={{ color: 'white', fontSize: '1.5rem', marginBottom: '0.75rem' }}>
+                    {isDragActive ? "Drop to Ingest" : "Upload your Resume"}
+                </h3>
+                <p style={{ color: 'var(--text-muted)', fontSize: '0.95rem' }}>Drag & drop or click to browse (PDF only)</p>
               </motion.div>
             )}
 
             {uploadState === 'uploading' && (
-              <motion.div key="uploading" initial={{ opacity: 0 }} animate={{ opacity: 1 }} exit={{ opacity: 0 }} style={{ textAlign: 'center' }}>
-                <motion.div
-                  animate={{ rotate: 360 }}
-                  transition={{ duration: 1.5, repeat: Infinity, ease: 'linear' }}
-                  style={{ display: 'inline-block', marginBottom: '1.5rem' }}
-                >
-                  <Cpu size={44} color="#3b82f6" />
-                </motion.div>
-                <h3 style={{ color: 'var(--text-primary)', fontSize: '1.15rem', fontWeight: '800', marginBottom: '1rem', fontFamily: 'Outfit, sans-serif' }}>Uploading Resume...</h3>
-                <div style={{ width: '200px', height: '4px', background: '#e5e7eb', borderRadius: '2px', margin: '0 auto', overflow: 'hidden' }}>
-                  <motion.div initial={{ width: '0%' }} animate={{ width: '100%' }} transition={{ duration: 2 }} style={{ height: '100%', background: '#3b82f6' }} />
+              <motion.div key="uploading" initial={{ opacity: 0 }} animate={{ opacity: 1 }} style={{ textAlign: 'center', width: '100%', position: 'relative' }}>
+                <div style={{ position: 'relative', width: '80px', height: '80px', margin: '0 auto 2rem' }}>
+                    <Loader2 size={80} color="var(--primary)" className="spin" style={{ position: 'absolute', top: 0, left: 0 }} />
+                    <Cpu size={32} color="var(--primary)" style={{ position: 'absolute', top: '24px', left: '24px' }} />
                 </div>
-              </motion.div>
-            )}
-
-            {uploadState === 'analyzing' && (
-              <motion.div key="analyzing" initial={{ opacity: 0 }} animate={{ opacity: 1 }} exit={{ opacity: 0 }} style={{ textAlign: 'center' }}>
-                <div style={{ position: 'relative', display: 'inline-block', marginBottom: '1.75rem' }}>
-                  <Cpu size={44} color="#10b981" />
-                  <motion.div
-                    initial={{ top: '-10px' }} animate={{ top: '55px' }}
-                    transition={{ repeat: Infinity, duration: 1, repeatType: 'reverse' }}
-                    style={{ position: 'absolute', width: '100%', height: '2px', background: '#10b981', left: 0, borderRadius: '1px' }}
-                  />
+                <h3 style={{ color: 'white', fontSize: '1.5rem', marginBottom: '0.75rem' }}>AI Processing...</h3>
+                <p style={{ color: 'var(--text-dim)', fontSize: '0.95rem' }}>Parsing knowledge nodes and scoring match...</p>
+                
+                {/* Dynamic Stream Overlay */}
+                <div style={{ height: '40px', marginTop: '1.5rem', opacity: 0.6 }}>
+                   <LiveKeywordStream isAnalyzing={true} />
                 </div>
-                <h3 style={{ color: 'var(--text-primary)', fontSize: '1.15rem', fontWeight: '800', fontFamily: 'Outfit, sans-serif' }}>AI Parsing Identity &amp; Skills...</h3>
-                <p style={{ color: 'var(--text-secondary)', marginTop: '0.5rem', fontSize: '0.85rem' }}>Extracting experience, skills &amp; match data</p>
               </motion.div>
             )}
 
             {uploadState === 'complete' && (
               <motion.div key="complete" initial={{ opacity: 0, scale: 0.9 }} animate={{ opacity: 1, scale: 1 }} style={{ textAlign: 'center' }}>
-                <div style={{ background: '#dcfce7', padding: '20px', borderRadius: '50%', display: 'inline-block', marginBottom: '1.5rem' }}>
-                  <CheckCircle size={44} color="#10b981" />
+                <div style={{ background: 'hsla(150, 80%, 45%, 0.1)', padding: '24px', borderRadius: '50%', display: 'inline-block', marginBottom: '2rem' }}>
+                    <CheckCircle size={56} color="var(--success)" />
                 </div>
-                <h3 style={{ color: 'var(--text-primary)', fontSize: '1.2rem', fontWeight: '800', marginBottom: '0.5rem', fontFamily: 'Outfit, sans-serif' }}>Upload Successful</h3>
-                <p style={{ color: '#10b981', fontSize: '0.88rem', fontWeight: '600' }}>Nikhil_Telkar_Resume.pdf processed</p>
+                <h3 style={{ color: 'white', fontSize: '1.5rem', marginBottom: '0.75rem' }}>Ingestion Complete</h3>
+                <p style={{ color: 'var(--success)', fontSize: '1rem', fontWeight: '700' }}>Confirmed: {extractedName}</p>
+                <p style={{ color: 'var(--text-muted)', fontSize: '0.85rem', marginTop: '1rem' }}>Click to upload another resume</p>
+              </motion.div>
+            )}
+
+            {uploadState === 'error' && (
+              <motion.div key="error" style={{ textAlign: 'center' }} onClick={(e) => { e.stopPropagation(); setUploadState('idle'); }}>
+                 <div style={{ background: 'hsla(0, 85%, 60%, 0.1)', padding: '24px', borderRadius: '50%', display: 'inline-block', marginBottom: '2rem' }}>
+                    <AlertCircle size={56} color="var(--danger)" />
+                </div>
+                <h3 style={{ color: 'white', fontSize: '1.5rem', marginBottom: '0.75rem' }}>Processing Error</h3>
+                <p style={{ color: 'var(--danger)', fontSize: '0.95rem' }}>Click to reset and try again</p>
               </motion.div>
             )}
           </AnimatePresence>
-        </div>
+        </motion.div>
 
-        {/* Results Panel */}
-        <div className="card" style={{ display: 'flex', flexDirection: 'column', padding: '2rem' }}>
-          <h3 style={{ color: 'var(--text-primary)', fontSize: '1.1rem', fontWeight: '800', marginBottom: '2rem', display: 'flex', alignItems: 'center', gap: '8px', fontFamily: 'Outfit, sans-serif' }}>
-            <Cpu size={18} color="#3b82f6" /> Real-time Analysis
-          </h3>
-
-          {uploadState === 'idle' || uploadState === 'uploading' ? (
-            <div style={{ flex: 1, display: 'flex', flexDirection: 'column', alignItems: 'center', justifyContent: 'center', gap: '1rem' }}>
-              <div style={{ width: '64px', height: '64px', background: '#f3f4f6', borderRadius: '50%', display: 'flex', alignItems: 'center', justifyContent: 'center' }}>
-                <FileText size={28} color="#9ca3af" />
-              </div>
-              <p style={{ color: 'var(--text-secondary)', fontSize: '0.9rem', textAlign: 'center' }}>Upload a file to see AI match insights</p>
+        {/* Analytics Summary */}
+        <div className="glass-card" style={{ borderLeft: '4px solid var(--primary)', display: 'flex', flexDirection: 'column' }}>
+          <div style={{ marginBottom: '1.5rem' }}>
+            <h4 style={{ color: 'var(--text-dim)', fontSize: '0.7rem', fontWeight: '800', marginBottom: '1.5rem', display: 'flex', alignItems: 'center', gap: '8px', textTransform: 'uppercase', letterSpacing: '0.1em' }}>
+              <Cpu size={18} color="var(--primary)" /> LIVE SCORING ENGINE
+            </h4>
+            
+            <div style={{ fontSize: '5rem', fontWeight: '900', color: 'white', letterSpacing: '-4px', lineHeight: 1, marginBottom: '0.5rem' }}>
+              {score}<span style={{ color: 'var(--primary)', fontSize: '2.5rem' }}>%</span>
             </div>
-          ) : (
-            <div style={{ display: 'flex', flexDirection: 'column', gap: '2rem' }}>
-              <div style={{ textAlign: 'center' }}>
-                <div style={{ fontSize: '4.5rem', fontWeight: '900', color: 'var(--text-primary)', letterSpacing: '-3px', fontFamily: 'Outfit, sans-serif' }}>
-                  {score}<span style={{ color: '#3b82f6', fontSize: '2.5rem' }}>%</span>
+            <p style={{ color: 'var(--text-muted)', fontSize: '0.75rem', fontWeight: '700' }}>PROBABILISTIC TALENT MATCH</p>
+          </div>
+
+          {/* AI Summary Section with 2 Paras */}
+          <AnimatePresence>
+            {uploadState === 'complete' && summary && (
+              <motion.div 
+                initial={{ opacity: 0, y: 10 }}
+                animate={{ opacity: 1, y: 0 }}
+                style={{ marginBottom: '2rem', flex: 1 }}
+              >
+                <div style={{ background: 'hsla(217, 91%, 60%, 0.05)', padding: '1.25rem', borderRadius: '16px', border: '1px solid hsla(217, 91%, 60%, 0.1)' }}>
+                    <div style={{ display: 'flex', alignItems: 'center', gap: '8px', color: 'var(--primary)', fontSize: '0.65rem', fontWeight: '900', textTransform: 'uppercase', marginBottom: '12px', letterSpacing: '0.08em' }}>
+                        <Brain size={14} /> AI Evaluation Profile
+                    </div>
+                    {summary.split('\n\n').map((para, i) => (
+                        <p key={i} style={{ color: 'var(--text-dim)', fontSize: '0.85rem', lineHeight: '1.6', marginBottom: i === 0 ? '1rem' : 0 }}>
+                            {para}
+                        </p>
+                    ))}
                 </div>
-                <p style={{ color: 'var(--text-secondary)', fontSize: '0.85rem' }}>Match score for target role</p>
-              </div>
+              </motion.div>
+            )}
+          </AnimatePresence>
 
-              {uploadState === 'complete' && (
-                <motion.div initial={{ opacity: 0, y: 10 }} animate={{ opacity: 1, y: 0 }} style={{ marginTop: 'auto' }}>
-                  <div style={{ padding: '0.875rem 1rem', background: '#dcfce7', borderRadius: '10px', color: '#166534', fontSize: '0.88rem', marginBottom: '1.25rem', display: 'flex', alignItems: 'center', gap: '8px', fontWeight: '600' }}>
-                    <CheckCircle size={16} /> Shortlisting criteria met.
-                  </div>
-                  <button
-                    onClick={() => setActiveTab('prephub')}
-                    className="btn-primary"
-                    style={{ width: '100%', justifyContent: 'center', padding: '1rem' }}
-                  >
-                    Continue to Prep Hub <ArrowRight size={18} />
-                  </button>
-                </motion.div>
-              )}
+          <div style={{ display: 'flex', flexDirection: 'column', gap: '1rem', marginTop: 'auto' }}>
+            <button 
+              onClick={() => setActiveTab('dashboard')}
+              disabled={uploadState !== 'complete'}
+              className="btn-action-pro btn-primary" 
+              style={{ 
+                width: '100%', 
+                padding: '1.15rem',
+                opacity: uploadState === 'complete' ? 1 : 0.4,
+                cursor: uploadState === 'complete' ? 'pointer' : 'default'
+              }}
+            >
+              Access Dashboard <ArrowRight size={20} />
+            </button>
+            <div style={{ background: 'hsla(255, 255%, 255%, 0.02)', padding: '12px', borderRadius: '12px', border: '1px solid var(--card-border)' }}>
+              <p style={{ color: 'var(--text-muted)', fontSize: '0.7rem', textAlign: 'center', lineHeight: '1.5' }}>
+                Neural analysis calibrated for technical seniority & skill velocity.
+              </p>
             </div>
-          )}
+          </div>
         </div>
       </div>
     </div>
