@@ -3,7 +3,7 @@ const prisma = require('./lib/prisma');
 async function main() {
   console.log('Seeding database...');
   
-  // Candidates
+
   const c1 = await prisma.candidate.create({
     data: { name: 'Alex Rivera', role: 'Senior React Developer', match: 92, status: 'Top Pick', skills: ['React', 'TypeScript', 'Node.js'], applied: '2 days ago', summary: 'Senior Frontend Architect with 8+ years of experience in React and TypeScript.' }
   });

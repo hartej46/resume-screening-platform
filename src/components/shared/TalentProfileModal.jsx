@@ -1,18 +1,18 @@
 import React from 'react';
+import ReactDOM from 'react-dom';
 import { 
   X, 
   Cpu, 
   Briefcase, 
   MapPin, 
   Calendar, 
-  BadgeCheck, 
   Target, 
-  Zap,
-  Globe,
-  User,
-  ShieldCheck,
-  TrendingUp,
-  Brain
+  User, 
+  ShieldCheck, 
+  TrendingUp, 
+  Brain, 
+  Download,
+  Sparkles
 } from 'lucide-react';
 import { motion, AnimatePresence } from 'framer-motion';
 
@@ -25,151 +25,211 @@ const TalentProfileModal = ({ isOpen, onClose, candidate }) => {
       culturalCalibration: { "Alignment": "Culture-fit assessment pending." }
   };
 
-  return (
+  const handleDownload = () => {
+    if (candidate.file) {
+        window.open(candidate.file, '_blank');
+    } else {
+        alert("No original resume file found in database for this candidate.");
+    }
+  };
+
+  return ReactDOM.createPortal(
     <AnimatePresence>
       {isOpen && (
-        <div style={{ position: 'fixed', inset: 0, zIndex: 9999, display: 'flex', alignItems: 'center', justifyContent: 'center', padding: '2rem' }}>
-          {/* Backdrop */}
-          <motion.div 
-            initial={{ opacity: 0 }}
-            animate={{ opacity: 1 }}
-            exit={{ opacity: 0 }}
-            onClick={onClose}
-            style={{ position: 'absolute', inset: 0, background: 'rgba(0,0,0,0.85)', backdropFilter: 'blur(12px)' }}
-          />
-
+        <div className="modal-overlay">
           {/* Modal Content */}
           <motion.div 
-            initial={{ opacity: 0, scale: 0.95, y: 20 }}
+            initial={{ opacity: 0, scale: 0.98, y: 15 }}
             animate={{ opacity: 1, scale: 1, y: 0 }}
-            exit={{ opacity: 0, scale: 0.95, y: 20 }}
-            style={{ 
-              position: 'relative', 
-              width: '100%', 
-              maxWidth: '900px', 
-              maxHeight: '85vh', 
-              background: 'linear-gradient(135deg, hsla(240, 20%, 10%, 1) 0%, hsla(240, 15%, 8%, 1) 100%)',
-              border: '1px solid var(--card-border)',
-              borderRadius: '32px',
-              overflow: 'hidden',
-              boxShadow: '0 40px 100px rgba(0,0,0,0.5), 0 0 40px hsla(217, 91%, 60%, 0.1)'
-            }}
+            exit={{ opacity: 0, scale: 0.98, y: 15 }}
+            className="talent-modal-frame"
           >
-            {/* Header / Banner */}
-            <div style={{ padding: '3rem', background: 'linear-gradient(to right, hsla(217, 91%, 60%, 0.08), transparent)', borderBottom: '1px solid var(--card-border)', position: 'relative' }}>
-              <button 
-                onClick={onClose}
-                style={{ position: 'absolute', top: '2rem', right: '2rem', background: 'hsla(0,0%,100%,0.05)', border: '1px solid var(--card-border)', color: 'white', padding: '10px', borderRadius: '14px', cursor: 'pointer' }}
-              >
-                <X size={20} />
-              </button>
+            {/* Header */}
+            <div className="talent-modal-header">
+              <div className="modal-header-actions">
+                <button 
+                  onClick={handleDownload}
+                  className="btn-pdf-pro"
+                >
+                  <Download size={16} /> PDF
+                </button>
+                <button 
+                  onClick={onClose}
+                  className="btn-close-pro-modal"
+                >
+                  <X size={20} />
+                </button>
+              </div>
 
-              <div style={{ display: 'flex', alignItems: 'center', gap: '2rem' }}>
-                <div style={{ width: '100px', height: '100px', background: 'linear-gradient(135deg, var(--primary) 0%, var(--secondary) 100%)', borderRadius: '28px', display: 'flex', alignItems: 'center', justifyContent: 'center', boxShadow: '0 10px 30px var(--primary-glow)' }}>
-                  <User size={48} color="white" />
+              <div className="modal-profile-info">
+                <div className="modal-avatar-box">
+                  <User size={40} color="white" />
                 </div>
-                <div>
-                    <div style={{ display: 'flex', alignItems: 'center', gap: '12px', marginBottom: '8px' }}>
-                        <h2 style={{ color: 'white', fontSize: '2.5rem', fontWeight: '900', letterSpacing: '-1px' }}>{candidate.name}</h2>
-                        <span className="pill-capsule" style={{ background: 'var(--primary-glow)', color: 'var(--primary)', border: '1px solid hsla(217, 91%, 60%, 0.2)' }}>
-                            {candidate.match}% AI MATCH
+                <div className="modal-details-box">
+                    <div className="modal-name-row">
+                        <h2 className="modal-name">{candidate.name}</h2>
+                        <span className="talent-score-badge">
+                            {candidate.applications?.[0]?.matchScore || candidate.match}% {candidate.applications?.[0] ? 'JOB FIT' : 'AI MATCH'}
                         </span>
+                        {candidate.appliedResumeTitle && (
+                            <span className="pill-badge-primary">
+                                <Sparkles size={12} /> {candidate.appliedResumeTitle}
+                            </span>
+                        )}
                     </div>
-                  <div style={{ display: 'flex', flexWrap: 'wrap', gap: '1.5rem', color: 'var(--text-dim)', fontSize: '0.95rem', fontWeight: '600' }}>
-                    <div style={{ display: 'flex', alignItems: 'center', gap: '8px' }}><Briefcase size={18} color="var(--primary)" /> {candidate.role}</div>
-                    <div style={{ display: 'flex', alignItems: 'center', gap: '8px' }}><MapPin size={18} /> Remote / HQ</div>
-                    <div style={{ display: 'flex', alignItems: 'center', gap: '8px' }}><Calendar size={18} /> Processed {candidate.applied}</div>
+                  <div className="modal-stats-row">
+                    <div className="stat-item"><Briefcase size={16} /> {candidate.role}</div>
+                    <div className="stat-item"><MapPin size={16} /> HQ / Global Node</div>
+                    <div className="stat-item"><Calendar size={16} /> Synced {candidate.applied}</div>
                   </div>
                 </div>
               </div>
             </div>
 
+
             {/* Scrollable Body */}
-            <div style={{ padding: '3rem', overflowY: 'auto', maxHeight: 'calc(85vh - 200px)' }} className="hide-scrollbar">
-              <div style={{ display: 'grid', gridTemplateColumns: '1fr 1fr', gap: '3rem' }}>
+            <div className="talent-modal-body hide-scrollbar">
+              <div className="talent-grid">
                 
-                {/* Left Column: Intelligence Base */}
-                <div style={{ display: 'flex', flexDirection: 'column', gap: '2.5rem' }}>
-                  
-                  {/* Technical Section */}
+                {/* Left Column */}
+                <div className="modal-column">
                   <section>
-                    <div style={{ display: 'flex', alignItems: 'center', gap: '10px', color: 'var(--primary)', fontWeight: '900', fontSize: '0.8rem', textTransform: 'uppercase', marginBottom: '1.5rem', letterSpacing: '0.1em' }}>
-                      <Cpu size={18} /> TECHNICAL DEEP DIVE
+                    <div className="modal-section-label label-primary">
+                      <Cpu size={20} />
+                      <span className="label-text">TECHNICAL DEEP DIVE</span>
                     </div>
-                    <div style={{ display: 'flex', flexDirection: 'column', gap: '1rem' }}>
-                      {Object.entries(analysis.technicalDeepDive).map(([key, value]) => (
-                        <div key={key} style={{ background: 'hsla(255, 255%, 255%, 0.03)', padding: '1.25rem', borderRadius: '16px', border: '1px solid var(--card-border)' }}>
-                          <span style={{ display: 'block', color: 'var(--text-muted)', fontSize: '0.7rem', fontWeight: '800', marginBottom: '6px', textTransform: 'uppercase' }}>{key}</span>
-                          <span style={{ color: 'white', fontSize: '1rem', fontWeight: '600', lineHeight: '1.4' }}>{value}</span>
-                        </div>
+                    <div className="modal-card-list">
+                      {Object.entries(analysis.technicalDeepDive).map(([key, value], idx) => (
+                        <motion.div 
+                          key={key} 
+                          initial={{ opacity: 0, x: -10 }}
+                          animate={{ opacity: 1, x: 0 }}
+                          transition={{ delay: 0.1 + idx * 0.1 }}
+                          className="talent-section-card"
+                        >
+                          <span className="card-key text-primary">{key}</span>
+                          <span className="card-value">{value}</span>
+                        </motion.div>
                       ))}
                     </div>
                   </section>
 
-                  {/* Skills Section */}
-                  <section>
-                    <div style={{ display: 'flex', alignItems: 'center', gap: '10px', color: 'var(--secondary)', fontWeight: '900', fontSize: '0.8rem', textTransform: 'uppercase', marginBottom: '1.5rem', letterSpacing: '0.1em' }}>
-                      <Target size={18} /> PROFICIENCY NODES
+                  <section className="modal-section-spacing">
+                    <div className="modal-section-label label-secondary">
+                      <Target size={20} />
+                      <span className="label-text">PROFICIENCY NODES</span>
                     </div>
-                    <div style={{ display: 'flex', flexWrap: 'wrap', gap: '10px' }}>
-                      {(candidate.skills || []).map(skill => (
-                        <span key={skill} style={{ background: 'hsla(190, 90%, 50%, 0.1)', color: 'var(--secondary)', border: '1px solid hsla(190, 90%, 50%, 0.2)', padding: '8px 16px', borderRadius: '12px', fontSize: '0.85rem', fontWeight: '800' }}>
+                    <div className="modal-skill-grid">
+                      {(candidate.skills || []).map((skill, idx) => (
+                        <motion.span 
+                          key={skill}
+                          initial={{ opacity: 0, scale: 0.9 }}
+                          animate={{ opacity: 1, scale: 1 }}
+                          transition={{ delay: 0.3 + idx * 0.05 }}
+                          className="badge-primary-compact skill-pill"
+                        >
                           {skill}
-                        </span>
+                        </motion.span>
                       ))}
                     </div>
                   </section>
                 </div>
 
-                {/* Right Column: Experience and Culture */}
-                <div style={{ display: 'flex', flexDirection: 'column', gap: '2.5rem' }}>
-                  
-                  {/* Experience Section */}
+                {/* Right Column */}
+                <div className="modal-column">
+                  {/* New Match Breakdown Section */}
+                  {candidate.applications?.[0]?.matchBreakdown && (
+                    <section style={{ marginBottom: '2rem' }}>
+                      <div className="modal-section-label label-primary">
+                        <TrendingUp size={20} />
+                        <span className="label-text">NEURAL MATCH ARCHITECTURE</span>
+                      </div>
+                      <div className="glass-card match-breakdown-card">
+                        {Object.entries(candidate.applications[0].matchBreakdown).map(([key, data]) => (
+                          <div key={key} className="breakdown-item">
+                            <div className="breakdown-info">
+                              <span className="breakdown-key">{key.toUpperCase()}</span>
+                              <span className="breakdown-val">{data.score} / {data.max}</span>
+                            </div>
+                            <div className="breakdown-progress-bg">
+                              <motion.div 
+                                initial={{ width: 0 }}
+                                animate={{ width: `${(data.score / (data.max || 1)) * 100}%` }}
+                                transition={{ duration: 1.5, ease: "easeOut" }}
+                                className="breakdown-progress-fill"
+                                style={{ background: `linear-gradient(90deg, var(--primary) 0%, var(--accent) 100%)` }}
+                              />
+                            </div>
+                          </div>
+                        ))}
+                      </div>
+                    </section>
+                  )}
+
                   <section>
-                    <div style={{ display: 'flex', alignItems: 'center', gap: '10px', color: 'var(--warning)', fontWeight: '900', fontSize: '0.8rem', textTransform: 'uppercase', marginBottom: '1.5rem', letterSpacing: '0.1em' }}>
-                      <TrendingUp size={18} /> EXPERIENCE ARCHITECTURE
+                    <div className="modal-section-label label-warning">
+                      <TrendingUp size={20} />
+                      <span className="label-text">EXPERIENCE ARCHITECTURE</span>
                     </div>
-                    <div style={{ spaceY: '1rem' }}>
-                      {Object.entries(analysis.experienceArchitecture).map(([key, value]) => (
-                        <div key={key} style={{ marginBottom: '1.5rem', borderLeft: '2px solid hsla(40, 95%, 55%, 0.2)', paddingLeft: '1.25rem' }}>
-                          <span style={{ display: 'block', color: 'var(--warning)', fontSize: '0.7rem', fontWeight: '800', marginBottom: '4px' }}>{key}</span>
-                          <span style={{ color: 'var(--text-dim)', fontSize: '1rem', lineHeight: '1.6' }}>{value}</span>
-                        </div>
+                    <div className="modal-timeline-list">
+                      {Object.entries(analysis.experienceArchitecture).map(([key, value], idx) => (
+                        <motion.div 
+                          key={key} 
+                          initial={{ opacity: 0, x: 10 }}
+                          animate={{ opacity: 1, x: 0 }}
+                          transition={{ delay: 0.2 + idx * 0.1 }}
+                          className="timeline-item"
+                        >
+                          <span className="timeline-key text-warning">{key}</span>
+                          <span className="timeline-value">{value}</span>
+                        </motion.div>
                       ))}
                     </div>
                   </section>
 
-                  {/* Cultural Section */}
-                  <section>
-                    <div style={{ display: 'flex', alignItems: 'center', gap: '10px', color: '#a78bfa', fontWeight: '900', fontSize: '0.8rem', textTransform: 'uppercase', marginBottom: '1.5rem', letterSpacing: '0.1em' }}>
-                      <ShieldCheck size={18} /> CULTURAL CALIBRATION
+                  <section className="modal-section-spacing">
+                    <div className="modal-section-label label-purple">
+                      <ShieldCheck size={20} />
+                      <span className="label-text">CULTURAL CALIBRATION</span>
                     </div>
-                    <div style={{ background: 'linear-gradient(135deg, hsla(260, 100%, 70%, 0.05) 0%, transparent 100%)', padding: '1.5rem', borderRadius: '24px', border: '1px solid hsla(260, 100%, 70%, 0.15)' }}>
+                    <motion.div 
+                      initial={{ opacity: 0, y: 10 }}
+                      animate={{ opacity: 1, y: 0 }}
+                      transition={{ delay: 0.4 }}
+                      className="culture-card"
+                    >
                       {Object.entries(analysis.culturalCalibration).map(([key, value]) => (
-                        <div key={key} style={{ marginBottom: '1rem' }}>
-                          <span style={{ display: 'block', color: '#a78bfa', fontSize: '0.7rem', fontWeight: '800', marginBottom: '2px' }}>{key}</span>
-                          <span style={{ color: 'white', fontSize: '0.95rem', lineHeight: '1.5' }}>{value}</span>
+                        <div key={key} className="culture-item">
+                          <span className="culture-key text-purple">{key}</span>
+                          <span className="culture-value">{value}</span>
                         </div>
                       ))}
-                    </div>
+                    </motion.div>
                   </section>
 
-                  {/* Action Summary */}
-                  <div style={{ marginTop: 'auto', background: 'var(--card-bg)', padding: '1.5rem', borderRadius: '20px', border: '1px solid var(--card-border)', borderLeft: '4px solid var(--primary)' }}>
-                    <div style={{ display: 'flex', alignItems: 'center', gap: '10px', color: 'var(--text-muted)', fontSize: '0.75rem', fontWeight: '800', textTransform: 'uppercase', marginBottom: '8px' }}>
-                        <Brain size={14} /> AI Recommendation
+                  <motion.div 
+                    initial={{ opacity: 0, scale: 0.95 }}
+                    animate={{ opacity: 1, scale: 1 }}
+                    transition={{ delay: 0.6 }}
+                    className="ai-verdict-card"
+                  >
+                    <div className="verdict-header text-primary">
+                        <Brain size={16} /> <span>AI RECOMMENDATION</span>
                     </div>
-                    <p style={{ color: 'white', fontWeight: '600', fontSize: '0.9rem', lineHeight: '1.5' }}>
+                    <p className="verdict-text">
                         "{candidate.feedback || "Strategic growth hire with high potential."}"
                     </p>
-                  </div>
+                  </motion.div>
                 </div>
+
+
               </div>
             </div>
           </motion.div>
         </div>
       )}
-    </AnimatePresence>
+    </AnimatePresence>,
+    document.body
   );
 };
 

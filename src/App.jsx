@@ -2,10 +2,10 @@ import React, { useState, useEffect, useCallback, useMemo } from 'react';
 import { 
   Users, FileText, LayoutDashboard, Database, Search, 
   TrendingUp, CheckCircle, AlertCircle, MessageSquare, Plus,
-  ShieldCheck, HelpCircle, Cpu, ChevronRight, ClipboardList, Bot, ArrowRight 
+  ShieldCheck, HelpCircle, Cpu, ChevronRight, ClipboardList, Bot, ArrowRight, User, Sun, Moon, History
 } from 'lucide-react';
 import { motion, AnimatePresence } from 'framer-motion';
-import { SignedIn, SignedOut, SignInButton, UserButton, useUser } from '@clerk/clerk-react';
+import { SignedIn, SignedOut, SignInButton, UserButton, useUser, useClerk } from '@clerk/clerk-react';
 
 import AdminDashboard from './components/admin/AdminDashboard';
 import AdminResumeDatabase from './components/admin/AdminResumeDatabase';
@@ -15,100 +15,134 @@ import CandidateSubmit from './components/candidate/CandidateSubmit';
 import CandidateJobBoard from './components/candidate/CandidateJobBoard';
 import CandidateHome from './components/candidate/CandidateHome';
 import CandidatePrepHub from './components/candidate/CandidatePrepHub';
+import CandidateProfile from './components/candidate/CandidateProfile';
+import CandidateSimulation from './components/candidate/CandidateSimulation';
+import CandidateHistory from './components/candidate/CandidateHistory';
+import { API_BASE_URL } from './apiConfig';
 
 const ADMIN_EMAILS = [
   "himanshubansal1803@gmail.com", "nikhiltelkar19@gmail.com", 
-  "hartejsinghsandhu2806@gmail.com", "vivekkrishna7985@gmail.com"
+  "hartejsinghsandhu2806@gmail.com", "vivekkrishna7985@gmail.com","yashvendra.singh@newtonschool.co"
 ];
 
-const API_BASE_URL = "http://localhost:5001/api";
+const API_FULL_URL = `${API_BASE_URL}/api`;
 
-const DashboardShell = ({ role, activeTab, setActiveTab, user, onOpenChat, candidates, jobs, onRefresh, recommendations }) => {
+const DashboardShell = ({ role, activeTab, setActiveTab, user, onOpenChat, candidates, jobs, onRefresh, recommendations, activeInterviewApp, setActiveInterviewApp, theme, onToggleTheme, isChatOpen, activeChatCandidate }) => {
   const isAdmin = role === 'admin';
   
-  // Robustly find the candidate profile for the logged-in user
   const myProfile = useMemo(() => {
     return candidates.find(c => c.email === user?.primaryEmailAddress?.emailAddress);
   }, [candidates, user]);
 
+  const getHeaderContent = () => {
+    if (isAdmin) {
+      if (activeTab === 'dashboard') return { title: 'Recruiter Hub', subtitle: 'Orchestrate your multi-dimensional hiring pipeline.' };
+      if (activeTab === 'database') return { title: 'Resume Database', subtitle: 'Search and filter candidate profiles.' };
+      if (activeTab === 'jobs') return { title: 'Job Descriptions', subtitle: 'Manage and create new job postings.' };
+    } else {
+      if (activeTab === 'dashboard') return { title: `Hey ${user?.firstName}!`, subtitle: 'Track your strategic application roadmap.' };
+      if (activeTab === 'submit') return { title: 'Submission Portal', subtitle: 'Submit your application and resumes for AI evaluation.' };
+      if (activeTab === 'jobboard') return { title: 'Job Openings', subtitle: 'Discover AI-ranked career opportunities.' };
+      if (activeTab === 'history') return { title: 'Interview History', subtitle: 'Review your past simulated and real interviews.' };
+      if (activeTab === 'prephub') return { title: 'Interview Prep Hub', subtitle: 'Practice and prepare with AI-driven simulations.' };
+      if (activeTab === 'interview') return { title: 'Simulated Interview', subtitle: 'Interact with AI to demonstrate your skills.' };
+    }
+    return { title: '', subtitle: '' };
+  };
+
+  const headerContent = getHeaderContent();
+
   return (
     <div className="app-container">
       <aside className="sidebar">
-        <div className="brand" style={{ marginBottom: '3.5rem', display: 'flex', alignItems: 'center', gap: '14px' }}>
-          <div style={{ width: '48px', height: '48px', background: 'var(--primary)', borderRadius: '14px', display: 'flex', alignItems: 'center', justifyContent: 'center', boxShadow: '0 8px 32px var(--primary-glow)' }}>
-            <Cpu size={26} color="white" />
+        <div className="brand">
+          <div className="brand-icon">
+            <Cpu size={24} color="white" />
           </div>
-          <h2 className="brand-font" style={{ color: 'white', fontSize: '1.8rem' }}>HireAI</h2>
+          <div>
+            <h2 className="brand-name brand-font">HireAI</h2>
+            <div className="brand-subtitle">ENTERPRISE</div>
+          </div>
         </div>
 
-        <nav style={{ flex: 1 }}>
+        <nav className="sidebar-nav">
           {isAdmin ? (
             <>
               <button className={`nav-item-pro ${activeTab === 'dashboard' ? 'active' : ''}`} onClick={() => setActiveTab('dashboard')}>
-                <LayoutDashboard size={20} /> <span>Admin Overview</span>
+                <LayoutDashboard size={18} /> <span>Admin Overview</span>
               </button>
               <button className={`nav-item-pro ${activeTab === 'database' ? 'active' : ''}`} onClick={() => setActiveTab('database')}>
-                <Database size={20} /> <span>Resume Database</span>
+                <Database size={18} /> <span>Resume Database</span>
               </button>
               <button className={`nav-item-pro ${activeTab === 'jobs' ? 'active' : ''}`} onClick={() => setActiveTab('jobs')}>
-                <ClipboardList size={20} /> <span>Job Descriptions</span>
+                <ClipboardList size={18} /> <span>Job Descriptions</span>
               </button>
               
-              <div style={{ margin: '1.5rem 0', borderTop: '1px solid var(--card-border)', opacity: 0.5 }}></div>
-              
+              <div className="sidebar-separator"></div>
+              <div className="sidebar-section-title">INTELLIGENCE</div>
+
               <button 
-                className="nav-item-pro" 
+                className={`nav-item-pro btn-ask-ai ${isChatOpen && !activeChatCandidate ? 'active' : ''}`} 
                 onClick={() => onOpenChat()}
-                style={{ 
-                  background: 'linear-gradient(135deg, hsla(217, 91%, 60%, 0.1) 0%, transparent 100%)',
-                  border: '1px solid hsla(217, 91%, 60%, 0.2)',
-                  color: 'var(--primary)',
-                  fontWeight: '800'
-                }}
               >
-                <Bot size={20} /> <span>Ask HireAI Bot</span>
+                <Bot size={18} /> <span>Ask HireAI Bot</span>
               </button>
+              <div className="sidebar-separator"></div>
             </>
           ) : (
             <>
               <button className={`nav-item-pro ${activeTab === 'dashboard' ? 'active' : ''}`} onClick={() => setActiveTab('dashboard')}>
-                <LayoutDashboard size={20} /> <span>Evaluation Status</span>
+                <LayoutDashboard size={18} /> <span>Evaluation Status</span>
               </button>
               <button className={`nav-item-pro ${activeTab === 'jobboard' ? 'active' : ''}`} onClick={() => setActiveTab('jobboard')}>
-                <Search size={20} /> <span>Job Openings</span>
+                <Search size={18} /> <span>Job Openings</span>
               </button>
               <button className={`nav-item-pro ${activeTab === 'submit' ? 'active' : ''}`} onClick={() => setActiveTab('submit')}>
-                <FileText size={20} /> <span>Submission Portal</span>
+                <FileText size={18} /> <span>Submission Portal</span>
               </button>
               <button className={`nav-item-pro ${activeTab === 'prephub' ? 'active' : ''}`} onClick={() => setActiveTab('prephub')}>
-                <HelpCircle size={20} /> <span>Interview Prep Hub</span>
+                <HelpCircle size={18} /> <span>Interview Hub</span>
               </button>
+              <button className={`nav-item-pro ${activeTab === 'history' ? 'active' : ''}`} onClick={() => setActiveTab('history')}>
+                <History size={18} /> <span>Interview History</span>
+              </button>
+              <button className={`nav-item-pro ${activeTab === 'profile' ? 'active' : ''}`} onClick={() => setActiveTab('profile')}>
+                <User size={18} /> <span>My Profile</span>
+              </button>
+              <div className="sidebar-separator"></div>
             </>
           )}
         </nav>
 
-        <div style={{ background: 'var(--card-bg)', padding: '14px', borderRadius: '20px', display: 'flex', alignItems: 'center', border: '1px solid var(--card-border)' }}>
-          <UserButton showName appearance={{ elements: { userButtonOuterIdentifier: { color: 'white', fontWeight: '700' } } }} />
+        <div className="sidebar-user-footer">
+          <UserButton showName appearance={{ elements: { userButtonOuterIdentifier: { color: 'var(--text-main)', fontWeight: '700', fontSize: '13px' } } }} />
         </div>
       </aside>
 
-      {/* ── Main Content (light) ── */}
       <main className="main-content">
-        <header style={{ display: 'flex', justifyContent: 'space-between', marginBottom: '4rem', alignItems: 'center' }}>
-          <div>
-            <h1 style={{ fontSize: '3.5rem' }}>{isAdmin ? 'Recruiter Hub' : `Hey ${user?.firstName}!`}</h1>
-            <p style={{ color: 'var(--text-dim)', marginTop: '0.5rem' }}>
-                {isAdmin ? "Manage candidates and extraction pipelines" : "Your personal AI recruitment dashboard"}
-            </p>
-          </div>
-          <div style={{ background: 'var(--card-bg)', padding: '10px 20px', borderRadius: '14px', border: '1px solid var(--card-border)', display: 'flex', alignItems: 'center', gap: '12px' }}>
-            <div className="pulse" style={{ width: '8px', height: '8px', background: 'var(--primary)', borderRadius: '50%' }}></div>
-            <span style={{ fontWeight: '800', fontSize: '0.75rem', color: 'white', letterSpacing: '0.05em' }}>STABLE MODE</span>
-          </div>
-        </header>
+        {activeTab !== 'profile' && (
+          <header className="main-header">
+            <div>
+              <h1 className="header-title">{headerContent.title}</h1>
+              <p className="header-subtitle">{headerContent.subtitle}</p>
+            </div>
+            <div className="header-right">
+              <button onClick={onToggleTheme} className="theme-header-toggle" title={`Switch to ${theme === 'dark' ? 'Light' : 'Dark'} Mode`}>
+                {theme === 'dark' ? <Sun size={20} /> : <Moon size={20} />}
+              </button>
+              <div className="status-item">
+                 <ShieldCheck size={16} color="var(--primary)" /> SECURE SESSION
+              </div>
+              <div className="status-pill">
+                  <div className="pulse-dot"></div>
+                  <span className="status-pill-text">STABLE MODE</span>
+              </div>
+            </div>
+          </header>
+        )}
 
         <AnimatePresence mode="wait">
-          <motion.div key={activeTab} initial={{ opacity: 0, x: 5 }} animate={{ opacity: 1, x: 0 }} exit={{ opacity: 0, x: -5 }} transition={{ duration: 0.2 }}>
+          <motion.div key={activeTab} initial={{ opacity: 0, y: 10 }} animate={{ opacity: 1, y: 0 }} exit={{ opacity: 0, y: -10 }} transition={{ duration: 0.3, ease: "easeOut" }}>
             {isAdmin ? (
                activeTab === 'dashboard' ? <AdminDashboard candidates={candidates} onOpenChat={onOpenChat} /> : 
                activeTab === 'database' ? <AdminResumeDatabase candidates={candidates} onOpenChat={onOpenChat} onRefresh={onRefresh} /> :
@@ -116,49 +150,67 @@ const DashboardShell = ({ role, activeTab, setActiveTab, user, onOpenChat, candi
             ) : (
                activeTab === 'dashboard' ? <CandidateHome user={user} candidates={candidates} myProfile={myProfile} recommendations={recommendations} /> : 
                activeTab === 'submit' ? <CandidateSubmit onRefresh={onRefresh} setActiveTab={setActiveTab} /> :
-               activeTab === 'jobboard' ? <CandidateJobBoard user={user} allJobs={jobs} recommendations={recommendations} /> :
-               <CandidatePrepHub />
+               activeTab === 'jobboard' ? <CandidateJobBoard user={user} allJobs={jobs} myProfile={myProfile} onRefresh={onRefresh} recommendations={recommendations} setActiveTab={setActiveTab} /> :
+               activeTab === 'profile' ? <CandidateProfile user={user} myProfile={myProfile} onRefresh={onRefresh} setActiveTab={setActiveTab} /> :
+               activeTab === 'interview' ? <CandidateSimulation myProfile={myProfile} activeInterviewApp={activeInterviewApp} setActiveTab={setActiveTab} /> :
+               activeTab === 'history' ? <CandidateHistory user={user} myProfile={myProfile} /> :
+               <CandidatePrepHub myProfile={myProfile} setActiveTab={setActiveTab} setActiveInterviewApp={setActiveInterviewApp} />
             )}
           </motion.div>
         </AnimatePresence>
-
-        <style>{`
-          @keyframes pulse-dot {
-            0%, 100% { opacity: 1; }
-            50% { opacity: 0.5; }
-          }
-        `}</style>
       </main>
     </div>
   );
 };
 
+
 const App = () => {
-  const [activeTab, setActiveTab] = useState('dashboard');
+  const { openSignIn } = useClerk();
+  const [activeTab, setActiveTab] = useState(
+    () => sessionStorage.getItem('activeTab') || 'dashboard'
+  );
+
+  const handleSetActiveTab = (tab) => {
+    sessionStorage.setItem('activeTab', tab);
+    setActiveTab(tab);
+  };
+
+  const [theme, setTheme] = useState(() => localStorage.getItem('theme') || 'dark');
   const [candidates, setCandidates] = useState([]);
   const [jobs, setJobs] = useState([]);
   const [recommendations, setRecommendations] = useState([]);
   const [isChatOpen, setIsChatOpen] = useState(false);
   const [activeChatCandidate, setActiveChatCandidate] = useState(null);
+  const [activeInterviewApp, setActiveInterviewApp] = useState(null);
+  
+  const [isInitializing, setIsInitializing] = useState(false);
+  const [initStage, setInitStage] = useState('');
+
   const { user } = useUser();
   const isAdmin = useMemo(() => ADMIN_EMAILS.includes(user?.primaryEmailAddress?.emailAddress), [user]);
+
+  useEffect(() => {
+    document.documentElement.setAttribute('data-theme', theme);
+    localStorage.setItem('theme', theme);
+  }, [theme]);
+
+  const toggleTheme = () => setTheme(prev => prev === 'dark' ? 'light' : 'dark');
 
   const fetchData = useCallback(async () => {
     if (!user) return;
     try {
       const [candRes, jobsRes] = await Promise.all([
-        fetch(`${API_BASE_URL}/candidates`),
-        fetch(`${API_BASE_URL}/jobs`)
+        fetch(`${API_FULL_URL}/candidates`),
+        fetch(`${API_FULL_URL}/jobs`)
       ]);
       const candData = await candRes.json();
       const jobsData = await jobsRes.json();
-      setCandidates(candData);
-      setJobs(jobsData);
+      setCandidates(Array.isArray(candData) ? candData : []);
+      setJobs(Array.isArray(jobsData) ? jobsData : []);
 
-      // Fetch recommendations only for candidates
       if (!isAdmin) {
           const userEmail = user?.primaryEmailAddress?.emailAddress;
-          const recRes = await fetch(`${API_BASE_URL}/candidates/recommendations?email=${userEmail}`);
+          const recRes = await fetch(`${API_FULL_URL}/candidates/recommendations?email=${userEmail}`);
           const recData = await recRes.json();
           if (Array.isArray(recData)) setRecommendations(recData);
       }
@@ -172,46 +224,120 @@ const App = () => {
   }, [fetchData]);
 
   const handleOpenChat = (candidate = null) => {
-    setActiveChatCandidate(candidate);
-    setIsChatOpen(true);
+    if (isChatOpen && activeChatCandidate?.id === candidate?.id) {
+      setIsChatOpen(false);
+    } else {
+      setActiveChatCandidate(candidate);
+      setIsChatOpen(true);
+    }
+  };
+
+  const handleInitialize = () => {
+    setIsInitializing(true);
+    setInitStage('Neural Link Established');
+    
+    setTimeout(() => setInitStage('Decrypting Credentials...'), 800);
+    setTimeout(() => setInitStage('Accessing Secure Core...'), 1600);
+    
+    setTimeout(() => {
+      openSignIn({ mode: 'modal' });
+      setIsInitializing(false);
+    }, 2400);
   };
 
   return (
     <>
       <SignedOut>
         <div className="login-bg">
+          {/* Cinematic Background Elements */}
+          <div className="login-visuals">
+            <div className="orb orb-1"></div>
+            <div className="orb orb-2"></div>
+            <div className="orb orb-3"></div>
+            <div className="data-stream"></div>
+          </div>
+
           <motion.div 
-            initial={{ opacity: 0, y: 30 }} 
-            animate={{ opacity: 1, y: 0 }} 
-            transition={{ duration: 0.8, ease: [0.16, 1, 0.3, 1] }}
+            initial={{ opacity: 0, scale: 0.95, y: 30 }} 
+            animate={{ opacity: 1, scale: 1, y: 0 }} 
+            transition={{ duration: 1.2, ease: [0.16, 1, 0.3, 1] }}
             className="login-card"
           >
-            <div style={{ width: '80px', height: '80px', background: 'var(--primary)', borderRadius: '24px', display: 'flex', alignItems: 'center', justifyContent: 'center', margin: '0 auto 3rem', boxShadow: '0 20px 40px var(--primary-glow)' }}>
-               <Cpu size={42} color="white" />
-            </div>
+            <div className="scanning-line"></div>
             
-            <h1 style={{ color: 'white', fontSize: '4.5rem', marginBottom: '1rem', letterSpacing: '-0.06em', fontWeight: '900' }}>
-              HireAI <span style={{ color: 'var(--primary)' }}>Portal</span>
-            </h1>
-            
-            <p style={{ color: 'var(--text-dim)', marginBottom: '4rem', fontSize: '1.25rem', lineHeight: '1.6', maxWidth: '440px', margin: '0 auto 4rem' }}>
-              The world's most advanced AI-driven candidate screening and interview readiness platform.
-            </p>
+            <AnimatePresence>
+              {isInitializing && (
+                <motion.div 
+                  initial={{ opacity: 0 }}
+                  animate={{ opacity: 1 }}
+                  exit={{ opacity: 0 }}
+                  className="init-overlay"
+                >
+                  <div className="init-text">{initStage}</div>
+                  <div className="init-loader">
+                    <div className="init-loader-fill"></div>
+                  </div>
+                </motion.div>
+              )}
+            </AnimatePresence>
 
-            <SignInButton mode="modal">
-              <button className="login-btn">
-                Initialize Secure Session <ChevronRight size={20} />
+            <motion.div 
+              initial={{ opacity: 0, y: -20 }}
+              animate={{ opacity: 1, y: 0 }}
+              transition={{ delay: 0.4, duration: 0.8 }}
+              className="login-logo-wrapper"
+            >
+               <Cpu size={42} color="white" style={{ position: 'relative', zIndex: 2 }} />
+            </motion.div>
+            
+            <motion.h1 
+              initial={{ opacity: 0, y: 20 }}
+              animate={{ opacity: 1, y: 0 }}
+              transition={{ delay: 0.5, duration: 0.8 }}
+              className="login-title"
+            >
+              <span>HireAI</span>
+            </motion.h1>
+            
+            <motion.p 
+              initial={{ opacity: 0 }}
+              animate={{ opacity: 1 }}
+              transition={{ delay: 0.7, duration: 1 }}
+              className="login-subtitle"
+            >
+              Experience the next generation of AI-driven talent orchestration and automated screening.
+            </motion.p>
+
+            <motion.div
+              initial={{ opacity: 0, scale: 0.9 }}
+              animate={{ opacity: 1, scale: 1 }}
+              transition={{ delay: 0.9, duration: 0.6 }}
+            >
+              <button 
+                className={`login-btn ${isInitializing ? 'initializing' : ''}`}
+                onClick={handleInitialize}
+                disabled={isInitializing}
+              >
+                {isInitializing ? 'Connecting...' : 'Initialize Secure Session'}
+                <ChevronRight size={20} />
               </button>
-            </SignInButton>
+            </motion.div>
 
-            <div style={{ marginTop: '4rem', display: 'flex', justifyContent: 'center', gap: '2rem', opacity: 0.4 }}>
-               <div style={{ display: 'flex', alignItems: 'center', gap: '8px', fontSize: '0.8rem', fontWeight: '700', color: 'white' }}>
-                 <CheckCircle size={14} color="var(--success)" /> Neural Extraction
+            <motion.div 
+              initial={{ opacity: 0 }}
+              animate={{ opacity: 1 }}
+              transition={{ delay: 1.2, duration: 1 }}
+              className="login-footer"
+            >
+               <div className="login-footer-item">
+                 <div className="pulse-dot-premium"></div>
+                 <span>Neural Analysis</span>
                </div>
-               <div style={{ display: 'flex', alignItems: 'center', gap: '8px', fontSize: '0.8rem', fontWeight: '700', color: 'white' }}>
-                 <CheckCircle size={14} color="var(--success)" /> 0ms Latency
+               <div className="login-footer-item">
+                 <div className="pulse-dot-premium"></div>
+                 <span>Zero Latency</span>
                </div>
-            </div>
+            </motion.div>
           </motion.div>
         </div>
       </SignedOut>
@@ -220,13 +346,19 @@ const App = () => {
         <DashboardShell 
           role={isAdmin ? 'admin' : 'candidate'} 
           activeTab={activeTab} 
-          setActiveTab={setActiveTab} 
+          setActiveTab={handleSetActiveTab} 
           user={user} 
           candidates={candidates}
           jobs={jobs}
           recommendations={recommendations}
           onOpenChat={handleOpenChat}
           onRefresh={fetchData}
+          activeInterviewApp={activeInterviewApp}
+          setActiveInterviewApp={setActiveInterviewApp}
+          theme={theme}
+          onToggleTheme={toggleTheme}
+          isChatOpen={isChatOpen}
+          activeChatCandidate={activeChatCandidate}
         />
         <AIChatbotSidebar 
           isOpen={isChatOpen} 

@@ -16,426 +16,263 @@ import {
   CheckCircle,
   FileText,
   Users,
-  DollarSign
+  DollarSign,
+  ChevronDown,
+  ChevronUp,
+  Search,
+  Filter,
+  ArrowRight,
+  Target,
+  ShieldCheck,
+  TrendingUp
 } from 'lucide-react';
 import { motion, AnimatePresence } from 'framer-motion';
 import LiveKeywordStream from '../shared/LiveKeywordStream';
-import NotesModal from '../shared/NotesModal';
+import TalentProfileModal from '../shared/TalentProfileModal';
+import { API_BASE_URL } from '../../apiConfig';
+import JobProfileModal from '../shared/JobProfileModal';
+import './Admin.css';
+
+const formatTimeAgo = (dateString) => {
+    if (!dateString) return 'recently';
+    const date = new Date(dateString);
+    const seconds = Math.floor((new Date() - date) / 1000);
+    
+    let interval = seconds / 31536000;
+    if (interval > 1) return Math.floor(interval) + 'y ago';
+    interval = seconds / 2592000;
+    if (interval > 1) return Math.floor(interval) + 'm ago';
+    interval = seconds / 86400;
+    if (interval > 1) return Math.floor(interval) + 'd ago';
+    interval = seconds / 3600;
+    if (interval > 1) return Math.floor(interval) + 'h ago';
+    interval = seconds / 60;
+    if (interval > 1) return Math.floor(interval) + 'min ago';
+    return 'just now';
+};
 
 const AdminJobDescriptions = ({ jobs: initialJobs = [], onRefresh }) => {
   const [jobs, setJobs] = useState(initialJobs);
-  const [expandedId, setExpandedId] = useState(null);
+  const [selectedJobForModal, setSelectedJobForModal] = useState(null);
+  const [selectedCandidateForProfile, setSelectedCandidateForProfile] = useState(null);
   const [showCreateForm, setShowCreateForm] = useState(false);
   const [isDragActive, setIsDragActive] = useState(false);
   const [showSuccessPulse, setShowSuccessPulse] = useState(false);
-  const [newJob, setNewJob] = useState({ 
-    title: '', 
-    department: '', 
-    location: '', 
-    type: 'Full-Time', 
-    description: '', 
-    skills: '',
-    benefits: '',
-    interviewProcess: '',
-    culture: '',
-    responsibilities: '',
-    requirements: '',
-    bonusPoints: ''
-  });
+  const [searchQuery, setSearchQuery] = useState('');
+  
+  const [newJob, setNewJob] = useState({ title: '', department: '', location: '', type: 'Full-Time', salary: '', description: '', skills: '', benefits: '', interviewProcess: '', culture: '', responsibilities: '', requirements: '', bonusPoints: '' });
   const [isAnalyzing, setIsAnalyzing] = useState(false);
+  const [isSubmitting, setIsSubmitting] = useState(false);
   const [keywords, setKeywords] = useState([]);
-  const [selectedJob, setSelectedJob] = useState(null);
   const fileInputRef = useRef(null);
 
-  React.useEffect(() => {
-    setJobs(initialJobs);
-  }, [initialJobs]);
+  React.useEffect(() => { setJobs(initialJobs); }, [initialJobs]);
+
+  const filteredJobs = jobs.filter(j => j.title?.toLowerCase().includes(searchQuery.toLowerCase()) || j.department?.toLowerCase().includes(searchQuery.toLowerCase()));
 
   const handlePdfUpload = async (file) => {
-    if (!file || file.type !== 'application/pdf') {
-        alert("Please upload a PDF job description.");
-        return;
-    }
-
-    setIsAnalyzing(true);
-    setKeywords([]);
+    if (!file || file.type !== 'application/pdf') { alert("Please upload a PDF."); return; }
+    setIsAnalyzing(true); setKeywords([]);
     const formData = new FormData();
     formData.append('jdPdf', file);
-
     try {
-      const res = await fetch('http://localhost:5001/api/jobs/upload', {
-        method: 'POST',
-        body: formData
-      });
+      const res = await fetch(`${API_BASE_URL}/api/jobs/upload`, { method: 'POST', body: formData });
       const data = await res.json();
-      
-      if (!res.ok) {
-        console.error("[Upload] Server rejected:", data);
-        alert(`Extraction failed: ${data.error || 'Unknown error'}`);
-        setIsAnalyzing(false);
-        return;
-      }
-
-      console.log("[Upload] Gemini extracted:", data);
+      if (!res.ok) { alert(`Extraction failed: ${data.error}`); setIsAnalyzing(false); return; }
       setShowSuccessPulse(true);
-      
       setTimeout(() => {
-          setShowSuccessPulse(false);
-          setIsAnalyzing(false);
-          setKeywords(data.skills || []);
-          setNewJob({
-              title: data.title || '',
-              department: data.department || '',
-              location: data.location || '',
-              type: data.type || 'Full-Time',
-              description: data.description || '',
-              skills: Array.isArray(data.skills) ? data.skills.join('\n') : '',
-              benefits: data.benefits || '',
-              interviewProcess: data.interviewProcess || '',
-              culture: data.culture || '',
-              responsibilities: data.responsibilities || '',
-              requirements: data.requirements || '',
-              bonusPoints: data.bonusPoints || ''
-          });
+          setShowSuccessPulse(false); setIsAnalyzing(false); setKeywords(data.skills || []);
+          const salaryMatch = (data.benefits || '').match(/(?:₹|\$|USD|INR|LPA|lpa)?\s*[\d,]+\s*(?:k|K|L|lakh|lakhs)?(?:\s*[-–]\s*(?:₹|\$)?\s*[\d,]+\s*(?:k|K|L|lakh|lakhs)?)?\s*(?:per year|per month|per annum|PA|CTC|p\.a\.)?/i);
+          setNewJob({ title: data.title || '', department: data.department || '', location: data.location || '', type: data.type || 'Full-Time', salary: salaryMatch ? salaryMatch[0].trim() : '', description: data.description || '', skills: Array.isArray(data.skills) ? data.skills.join('\n') : '', benefits: data.benefits || '', interviewProcess: data.interviewProcess || '', culture: data.culture || '', responsibilities: data.responsibilities || '', requirements: data.requirements || '', bonusPoints: data.bonusPoints || '' });
           setShowCreateForm(true);
       }, 1200);
-
-    } catch (err) {
-      console.error("JD Extraction failed:", err);
-      alert(`Network error: ${err.message}`);
-      setIsAnalyzing(false);
-    }
+    } catch (err) { alert(`Network error: ${err.message}`); setIsAnalyzing(false); }
   };
 
-  const handleDrag = (e) => {
-    e.preventDefault();
-    e.stopPropagation();
-    if (e.type === "dragenter" || e.type === "dragover") setIsDragActive(true);
-    else if (e.type === "dragleave") setIsDragActive(false);
-  };
-
-  const handleDrop = (e) => {
-    e.preventDefault();
-    e.stopPropagation();
-    setIsDragActive(false);
-    if (e.dataTransfer.files && e.dataTransfer.files[0]) {
-      handlePdfUpload(e.dataTransfer.files[0]);
-    }
-  };
+  const handleDrag = (e) => { e.preventDefault(); e.stopPropagation(); setIsDragActive(e.type === "dragenter" || e.type === "dragover"); };
+  const handleDrop = (e) => { e.preventDefault(); e.stopPropagation(); setIsDragActive(false); if (e.dataTransfer.files?.[0]) handlePdfUpload(e.dataTransfer.files[0]); };
 
   const handleCreate = async (e) => {
-    e.preventDefault();
-    setIsSubmitting(true);
+    e.preventDefault(); setIsSubmitting(true);
     try {
-      const payload = {
-        ...newJob,
-        skills: newJob.skills.split('\n').filter(s => s.trim() !== ''),
-        salary: "$120k - $180k",
-      };
-      const res = await fetch('http://localhost:5001/api/jobs', {
-        method: 'POST',
-        headers: { 'Content-Type': 'application/json' },
-        body: JSON.stringify(payload)
-      });
-      
-      if (res.ok) {
-        setShowCreateForm(false);
-        setNewJob({ title: '', department: '', location: '', type: 'Full-Time', description: '', skills: '', benefits: '', interviewProcess: '', culture: '' });
-        if (onRefresh) onRefresh();
-      }
-    } catch (err) {
-      console.error("Create failed:", err);
-    }
+      const payload = { ...newJob, skills: newJob.skills.split('\n').filter(s => s.trim() !== ''), salary: newJob.salary || 'Competitive' };
+      const res = await fetch(`${API_BASE_URL}/api/jobs`, { method: 'POST', headers: { 'Content-Type': 'application/json' }, body: JSON.stringify(payload) });
+      if (res.ok) { setShowCreateForm(false); if (onRefresh) onRefresh(); }
+    } catch (err) { alert(`Error: ${err.message}`); } finally { setIsSubmitting(false); }
   };
 
-  const handleDelete = async (id) => {
-    if (!window.confirm("Remove this position definitely?")) return;
+  const handleDelete = async (e, id) => {
+    e.stopPropagation();
+    if (!window.confirm("Are you sure you want to delete this job posting? This will also remove associated applications.")) return;
     try {
-      const res = await fetch(`http://localhost:5001/api/jobs/${id}`, { method: 'DELETE' });
-      if (res.ok) if (onRefresh) onRefresh();
-    } catch (err) {
-      console.error("Delete failed:", err);
-    }
+        const res = await fetch(`${API_BASE_URL}/api/jobs/${id}`, { method: 'DELETE' });
+        if (res.ok) if (onRefresh) onRefresh();
+    } catch (err) { alert(err.message); }
   };
 
   return (
-    <div className="fadeIn">
-      {/* Header & Upload Zone */}
-      <div style={{ display: 'grid', gridTemplateColumns: '1fr 1fr', gap: '3rem', marginBottom: '3rem', alignItems: 'center' }}>
-        <div>
-          <h2 style={{ color: 'white', fontSize: '3rem', fontWeight: '900', letterSpacing: '-1.5px' }}>Job Descriptions</h2>
-          <p style={{ color: 'var(--text-dim)', marginTop: '0.75rem', fontSize: '1.25rem' }}>
-            Multi-dimensional neural extraction for high-velocity hiring.
+    <div className="fadeIn admin-page-container">
+      <div className="admin-header-layout">
+        <div className="admin-header-info">
+          <div className="pill-badge-primary self-start mb-4">
+            <Sparkles size={14} /> AI EXTRACTION ENGINE v4.0
+          </div>
+          <h2 className="text-white text-3xl font-black mb-4">Hiring Index</h2>
+          <p className="admin-desc-muted max-w-md">
+            Index your hiring strategy with multi-dimensional neural extraction. 
+            Upload job descriptions to auto-generate requirements and skills.
           </p>
-          <div style={{ marginTop: '2.5rem', display: 'flex', gap: '1.5rem' }}>
-             <button onClick={() => setShowCreateForm(true)} className="btn-action-pro btn-primary" style={{ padding: '1rem 3rem', fontSize: '1rem' }}>
-                <Plus size={20} /> New Manual Posting
+          
+          <div className="admin-header-actions mt-8">
+             <button onClick={() => setShowCreateForm(true)} className="btn-action-pro btn-primary">
+                <Plus size={18} /> New Manual Posting
              </button>
-             <div style={{ display: 'flex', alignItems: 'center', gap: '8px', color: 'var(--text-muted)', fontSize: '0.85rem' }}>
-                <Sparkles size={16} color="var(--primary)" /> Smart Upload Active
+             <div className="sync-status-pill">
+                <div className="pulse-dot"></div>
+                <span>Cloud Sync Active</span>
              </div>
           </div>
         </div>
 
-        {/* DRAG AND DROP ZONE */}
         <motion.div 
-            onDragEnter={handleDrag}
-            onDragLeave={handleDrag}
-            onDragOver={handleDrag}
-            onDrop={handleDrop}
+            onDragEnter={handleDrag} onDragLeave={handleDrag} onDragOver={handleDrag} onDrop={handleDrop}
             onClick={() => !isAnalyzing && fileInputRef.current?.click()}
+            className={`admin-upload-zone ${isDragActive ? 'drag-active' : ''}`}
             whileHover={{ scale: 1.01 }}
-            className="glass-card"
-            style={{ 
-                border: isDragActive ? '2px solid var(--primary)' : '2px dashed var(--card-border)', 
-                background: isDragActive ? 'hsla(217, 91%, 60%, 0.05)' : 'var(--card-bg)',
-                cursor: 'pointer',
-                textAlign: 'center',
-                padding: '3rem',
-                minHeight: '220px',
-                display: 'flex',
-                alignItems: 'center',
-                justifyContent: 'center',
-                position: 'relative'
-            }}
         >
-          <input type="file" ref={fileInputRef} onChange={(e) => handlePdfUpload(e.target.files[0])} style={{ display: 'none' }} accept="application/pdf" />
-          
+          <input type="file" ref={fileInputRef} onChange={(e) => handlePdfUpload(e.target.files[0])} className="hidden" accept="application/pdf" />
           <AnimatePresence mode="wait">
             {isAnalyzing ? (
-              <motion.div key="loading" initial={{ opacity: 0 }} animate={{ opacity: 1 }} exit={{ opacity: 0 }} style={{ display: 'flex', flexDirection: 'column', alignItems: 'center', gap: '1rem' }}>
-                <Loader2 size={56} color="var(--primary)" className="spin" />
-                <div style={{ textAlign: 'center' }}>
-                    <p style={{ color: 'white', fontWeight: '900', fontSize: '1.1rem', letterSpacing: '0.05em' }}>PARSING KNOWLEDGE NODES...</p>
-                    <p style={{ color: 'var(--text-dim)', fontSize: '0.8rem', marginTop: '4px' }}>Gemini 1.5 is scanning for structural details.</p>
+              <motion.div key="loading" initial={{ opacity: 0 }} animate={{ opacity: 1 }} className="upload-state-container">
+                <div className="loader-ring"></div>
+                <div className="text-center mt-6">
+                    <p className="neural-scan-text">Neural Scan In Progress</p>
+                    <p className="admin-desc-muted text-xs">Gemini 1.5 mapping knowledge nodes...</p>
                 </div>
                 <LiveKeywordStream isAnalyzing={true} customKeywords={keywords} />
               </motion.div>
             ) : showSuccessPulse ? (
-              <motion.div key="success" initial={{ scale: 0.8, opacity: 0 }} animate={{ scale: 1, opacity: 1 }} style={{ textAlign: 'center' }}>
-                 <div style={{ background: 'hsla(150, 80%, 45%, 0.1)', width: '70px', height: '70px', borderRadius: '50%', display: 'flex', alignItems: 'center', justifyContent: 'center', margin: '0 auto 1.5rem' }}>
-                    <CheckCircle size={40} color="var(--success)" />
+              <motion.div key="success" initial={{ scale: 0.8 }} animate={{ scale: 1 }} className="upload-state-container">
+                 <div className="success-icon-box">
+                    <CheckCircle size={32} color="var(--success)" />
                  </div>
-                 <h4 style={{ color: 'var(--success)', fontWeight: '900', fontSize: '1.25rem' }}>EXTRACTION SUCCESSFUL</h4>
+                 <h4 className="text-success font-black text-lg">STRUCTURE EXTRACTED</h4>
               </motion.div>
             ) : (
-              <motion.div key="idle" initial={{ opacity: 0 }} animate={{ opacity: 1 }}>
-                <div style={{ background: 'var(--primary-glow)', padding: '20px', borderRadius: '50%', display: 'inline-block', marginBottom: '1.5rem' }}>
-                    <UploadCloud size={48} color="var(--primary)" />
+              <motion.div key="idle" className="upload-state-container">
+                <div className="upload-icon-circle">
+                  <UploadCloud size={40} />
                 </div>
-                <h4 style={{ color: 'white', fontSize: '1.4rem', fontWeight: '800', marginBottom: '8px' }}>
-                    {isDragActive ? "Drop JD to Start Neural Scan" : "Neural Job Extraction"}
-                </h4>
-                <p style={{ color: 'var(--text-dim)', fontSize: '0.95rem' }}>Drag & Drop PDF to auto-fill Job Descriptions.</p>
+                <h4 className="upload-title">{isDragActive ? "Inhale Strategy" : "Neural Extraction"}</h4>
+                <p className="upload-subtitle">Drop PDF to auto-fill job details</p>
               </motion.div>
             )}
           </AnimatePresence>
         </motion.div>
       </div>
 
-      {/* Creation Modal */}
-      <AnimatePresence>
-        {showCreateForm && (
-          <motion.div initial={{ opacity: 0 }} animate={{ opacity: 1 }} exit={{ opacity: 0 }} className="modal-overlay">
-            <motion.div initial={{ scale: 0.95, y: 30 }} animate={{ scale: 1, y: 0 }} className="glass-card" style={{ width: '960px', padding: '4rem', position: 'relative', border: '1px solid var(--primary-glow)' }}>
-              <button onClick={() => setShowCreateForm(false)} style={{ position: 'absolute', top: '2.5rem', right: '2.5rem', background: 'none', border: 'none', color: 'var(--text-dim)', cursor: 'pointer' }}><X size={28} /></button>
 
-              <div style={{ display: 'flex', alignItems: 'center', gap: '16px', marginBottom: '3.5rem' }}>
-                  <div style={{ background: 'var(--primary)', padding: '12px', borderRadius: '16px' }}><Brain size={36} color="white" /></div>
-                  <div>
-                    <h3 style={{ color: 'white', fontSize: '2.25rem', fontWeight: '900', letterSpacing: '-1px' }}>Verify Neural Intelligence</h3>
-                    <p style={{ color: 'var(--text-dim)', fontSize: '1.1rem' }}>Correct any fields populated by the LLM extraction loop.</p>
-                  </div>
-              </div>
-
-              <form onSubmit={handleCreate}>
-                <div style={{ display: 'grid', gridTemplateColumns: 'repeat(3, 1fr)', gap: '1.5rem', marginBottom: '2.5rem' }}>
-                    <div className="input-group">
-                        <div style={{ display: 'flex', justifyContent: 'space-between', alignItems: 'center', marginBottom: '8px' }}>
-                            <label className="label-pro">Job Title</label>
-                            <span className="pill-capsule" style={{ fontSize: '0.6rem', padding: '2px 8px', background: 'hsla(217, 91%, 60%, 0.1)', color: 'var(--primary)' }}>AI SUGGESTED</span>
-                        </div>
-                        <input type="text" value={newJob.title} onChange={(e) => setNewJob({...newJob, title: e.target.value})} style={inputStyle} required />
-                    </div>
-                    <div className="input-group">
-                        <label className="label-pro">Department</label>
-                        <input type="text" value={newJob.department} onChange={(e) => setNewJob({...newJob, department: e.target.value})} style={inputStyle} required />
-                    </div>
-                    <div className="input-group">
-                        <label className="label-pro">Location</label>
-                        <input type="text" value={newJob.location} onChange={(e) => setNewJob({...newJob, location: e.target.value})} style={inputStyle} required />
-                    </div>
-                </div>
-
-                <div style={{ display: 'grid', gridTemplateColumns: '1fr 1fr', gap: '1.5rem', marginBottom: '2.5rem' }}>
-                    <div className="input-group">
-                        <label className="label-pro">Extracted Requirements (One per line)</label>
-                        <textarea value={newJob.skills} onChange={(e) => setNewJob({...newJob, skills: e.target.value})} style={{...inputStyle, height: '180px', resize: 'none'}} />
-                    </div>
-                    <div className="input-group">
-                        <label className="label-pro">Neural Summary</label>
-                        <textarea value={newJob.description} onChange={(e) => setNewJob({...newJob, description: e.target.value})} style={{...inputStyle, height: '180px'}} required />
-                    </div>
-                </div>
-
-                <div style={{ display: 'grid', gridTemplateColumns: 'repeat(3, 1fr)', gap: '1.5rem', marginBottom: '3.5rem' }}>
-                    <div className="input-group">
-                        <label className="label-pro" style={{ color: 'var(--primary)' }}><Gift size={15} style={{ marginRight: '6px' }} /> Perks & Benefits</label>
-                        <textarea value={newJob.benefits} onChange={(e) => setNewJob({...newJob, benefits: e.target.value})} style={{...inputStyle, height: '120px', border: '1px solid hsla(217, 91%, 60%, 0.2)'}} />
-                    </div>
-                    <div className="input-group">
-                        <label className="label-pro" style={{ color: 'var(--warning)' }}><Zap size={15} style={{ marginRight: '6px' }} /> Hiring Loop</label>
-                        <textarea value={newJob.interviewProcess} onChange={(e) => setNewJob({...newJob, interviewProcess: e.target.value})} style={{...inputStyle, height: '120px', border: '1px solid hsla(45, 100%, 50%, 0.2)'}} />
-                    </div>
-                    <div className="input-group">
-                        <label className="label-pro" style={{ color: '#a78bfa' }}><Globe size={15} style={{ marginRight: '6px' }} /> Team Culture</label>
-                        <textarea value={newJob.culture} onChange={(e) => setNewJob({...newJob, culture: e.target.value})} style={{...inputStyle, height: '120px', border: '1px solid hsla(255, 90%, 75%, 0.2)'}} />
-                    </div>
-                </div>
-
-                <div style={{ display: 'flex', gap: '1.5rem', justifyContent: 'flex-end' }}>
-                    <button type="button" onClick={() => setShowCreateForm(false)} className="btn-action-pro" style={{ padding: '1.15rem 3.5rem' }}>Cancel</button>
-                    <button type="submit" className="btn-action-pro btn-primary" style={{ padding: '1.15rem 5rem', fontSize: '1.1rem' }}>Commit Strategy</button>
-                </div>
-              </form>
-            </motion.div>
-          </motion.div>
-        )}
-      </AnimatePresence>
-
-      {/* Grid of Jobs */}
-      <div style={{ display: 'grid', gridTemplateColumns: 'repeat(auto-fill, minmax(480px, 1fr))', gap: '2.5rem' }}>
-        {jobs.map(job => (
-          <motion.div
-            key={job.id}
-            layout
-            className="glass-card"
-            style={{
-                padding: '2.5rem',
-                borderRadius: '32px',
-                border: expandedId === job.id ? '1px solid var(--primary)' : '1px solid var(--card-border)',
-                background: expandedId === job.id ? 'linear-gradient(145deg, hsla(217, 91%, 60%, 0.05) 0%, transparent 100%)' : 'var(--card-bg)',
-                cursor: 'pointer'
-            }}
-            onClick={() => setExpandedId(expandedId === job.id ? null : job.id)}
-          >
-            {/* Title Row */}
-            <div style={{ display: 'flex', justifyContent: 'space-between', alignItems: 'flex-start', marginBottom: '1.5rem' }}>
-                <div style={{ display: 'flex', gap: '16px', flex: 1 }}>
-                    <div style={{ background: 'var(--primary-glow)', width: '52px', height: '52px', borderRadius: '16px', flexShrink: 0, display: 'flex', alignItems: 'center', justifyContent: 'center' }}>
-                        <Briefcase size={24} color="var(--primary)" />
-                    </div>
-                    <div style={{ flex: 1 }}>
-                        <h3 style={{ color: 'white', fontSize: '1.45rem', fontWeight: '900', letterSpacing: '-0.5px', marginBottom: '8px' }}>{job.title}</h3>
-                        <div style={{ display: 'flex', flexWrap: 'wrap', gap: '12px', fontSize: '0.85rem', color: 'var(--text-dim)', fontWeight: '700' }}>
-                            <span style={{ display: 'flex', alignItems: 'center', gap: '5px' }}><Users size={13} /> {job.department}</span>
-                            <span style={{ display: 'flex', alignItems: 'center', gap: '5px' }}><MapPin size={13} /> {job.location}</span>
-                        </div>
-                    </div>
-                </div>
-                <button onClick={(e) => { e.stopPropagation(); handleDelete(job.id); }} className="btn-action-pro" style={{ color: 'var(--danger)', padding: '8px', background: 'hsla(0, 85%, 60%, 0.05)', borderRadius: '12px', flexShrink: 0 }}>
-                    <Trash2 size={18} />
-                </button>
-            </div>
-
-            {/* Metadata Badges */}
-            <div style={{ display: 'flex', gap: '10px', flexWrap: 'wrap', marginBottom: '1.5rem' }}>
-                {job.salary && (
-                    <span style={{ background: 'hsla(150, 80%, 45%, 0.08)', color: 'var(--success)', border: '1px solid hsla(150, 80%, 45%, 0.2)', padding: '5px 14px', borderRadius: '30px', fontSize: '0.8rem', fontWeight: '800', display: 'flex', alignItems: 'center', gap: '5px' }}>
-                        <DollarSign size={13} /> {job.salary}
-                    </span>
-                )}
-                <span style={{ background: 'hsla(217, 91%, 60%, 0.08)', color: 'var(--primary)', border: '1px solid hsla(217, 91%, 60%, 0.2)', padding: '5px 14px', borderRadius: '30px', fontSize: '0.8rem', fontWeight: '800' }}>
-                    {job.type || 'Full-Time'}
-                </span>
-                <span style={{ background: 'hsla(255,255%,255%,0.03)', color: 'var(--text-dim)', border: '1px solid var(--card-border)', padding: '5px 14px', borderRadius: '30px', fontSize: '0.8rem', fontWeight: '700' }}>
-                    Posted {job.posted}
-                </span>
-                <span style={{ background: 'hsla(255,255%,255%,0.03)', color: expandedId === job.id ? 'var(--primary)' : 'var(--text-dim)', border: '1px solid var(--card-border)', padding: '5px 14px', borderRadius: '30px', fontSize: '0.8rem', fontWeight: '700', transition: 'all 0.3s' }}>
-                    {expandedId === job.id ? '▲ Collapse' : '▼ View Details'}
-                </span>
-            </div>
-
-            {/* Description Preview */}
-            <p style={{ color: 'var(--text-dim)', fontSize: '0.95rem', lineHeight: '1.7', marginBottom: '1.5rem' }}>
-                {expandedId === job.id ? job.description : (job.description || '').substring(0, 200) + '...'}
-            </p>
-
-            {/* Skills Chips — Always Visible */}
-            {(job.skills || []).length > 0 && (
-                <div style={{ display: 'flex', flexWrap: 'wrap', gap: '8px', marginBottom: '1rem' }}>
-                    {(job.skills || []).map(skill => (
-                        <span key={skill} style={{ background: 'hsla(0,0%,100%,0.03)', color: 'var(--text-dim)', padding: '5px 14px', borderRadius: '10px', fontSize: '0.8rem', fontWeight: '700', border: '1px solid var(--card-border)' }}>{skill}</span>
-                    ))}
-                </div>
-            )}
-
-            {/* Expanded Details */}
-            <AnimatePresence>
-                {expandedId === job.id && (
-                    <motion.div initial={{ opacity: 0, height: 0 }} animate={{ opacity: 1, height: 'auto' }} exit={{ opacity: 0, height: 0 }} style={{ overflow: 'hidden' }}>
-                        <div style={{ marginTop: '2.5rem', paddingTop: '2.5rem', borderTop: '1px solid var(--card-border)', display: 'flex', flexDirection: 'column', gap: '2rem' }}>
-                            
-                            {/* Top row: responsibilities + requirements */}
-                            {(job.responsibilities || job.requirements) && (
-                                <div style={{ display: 'grid', gridTemplateColumns: '1fr 1fr', gap: '1.5rem' }}>
-                                    {job.responsibilities && (
-                                        <div style={{ background: 'hsla(217, 91%, 60%, 0.05)', padding: '1.75rem', borderRadius: '22px', border: '1px solid hsla(217, 91%, 60%, 0.12)' }}>
-                                            <div style={{ color: 'var(--primary)', fontWeight: '900', fontSize: '0.72rem', textTransform: 'uppercase', letterSpacing: '0.1em', marginBottom: '14px' }}>⚙ Key Responsibilities</div>
-                                            <p style={{ color: 'white', fontSize: '0.88rem', lineHeight: '1.75', whiteSpace: 'pre-line' }}>{job.responsibilities}</p>
-                                        </div>
-                                    )}
-                                    {job.requirements && (
-                                        <div style={{ background: 'hsla(150, 80%, 45%, 0.04)', padding: '1.75rem', borderRadius: '22px', border: '1px solid hsla(150, 80%, 45%, 0.1)' }}>
-                                            <div style={{ color: 'var(--success)', fontWeight: '900', fontSize: '0.72rem', textTransform: 'uppercase', letterSpacing: '0.1em', marginBottom: '14px' }}>✓ Requirements</div>
-                                            <p style={{ color: 'white', fontSize: '0.88rem', lineHeight: '1.75', whiteSpace: 'pre-line' }}>{job.requirements}</p>
-                                        </div>
-                                    )}
-                                </div>
-                            )}
-
-                            {/* Bonus Points */}
-                            {job.bonusPoints && (
-                                <div style={{ background: 'hsla(45, 100%, 50%, 0.04)', padding: '1.75rem', borderRadius: '22px', border: '1px solid hsla(45, 100%, 50%, 0.1)' }}>
-                                    <div style={{ color: 'var(--warning)', fontWeight: '900', fontSize: '0.72rem', textTransform: 'uppercase', letterSpacing: '0.1em', marginBottom: '14px' }}>★ Bonus Points</div>
-                                    <p style={{ color: 'white', fontSize: '0.88rem', lineHeight: '1.75', whiteSpace: 'pre-line' }}>{job.bonusPoints}</p>
-                                </div>
-                            )}
-
-                            {/* Bottom row: Perks / Process / Culture */}
-                            <div style={{ display: 'grid', gridTemplateColumns: 'repeat(3, 1fr)', gap: '1.5rem' }}>
-                                <div style={{ background: 'hsla(217, 91%, 60%, 0.05)', padding: '1.5rem', borderRadius: '20px', border: '1px solid hsla(217, 91%, 60%, 0.12)' }}>
-                                    <div style={{ color: 'var(--primary)', fontWeight: '900', fontSize: '0.7rem', textTransform: 'uppercase', display: 'flex', alignItems: 'center', gap: '8px', marginBottom: '12px' }}><Gift size={15} /> Perks</div>
-                                    <p style={{ color: 'white', fontSize: '0.9rem', lineHeight: '1.6' }}>{job.benefits || 'Premium reward stack.'}</p>
-                                </div>
-                                <div style={{ background: 'hsla(45, 100%, 50%, 0.05)', padding: '1.5rem', borderRadius: '20px', border: '1px solid hsla(45, 100%, 50%, 0.12)' }}>
-                                    <div style={{ color: 'var(--warning)', fontWeight: '900', fontSize: '0.7rem', textTransform: 'uppercase', display: 'flex', alignItems: 'center', gap: '8px', marginBottom: '12px' }}><Zap size={15} /> Process</div>
-                                    <p style={{ color: 'white', fontSize: '0.9rem', lineHeight: '1.6' }}>{job.interviewProcess || 'Streamlined loop.'}</p>
-                                </div>
-                                <div style={{ background: 'hsla(255, 90%, 75%, 0.05)', padding: '1.5rem', borderRadius: '20px', border: '1px solid hsla(255, 90%, 75%, 0.12)' }}>
-                                    <div style={{ color: '#a78bfa', fontWeight: '900', fontSize: '0.7rem', textTransform: 'uppercase', display: 'flex', alignItems: 'center', gap: '8px', marginBottom: '12px' }}><Globe size={15} /> Culture</div>
-                                    <p style={{ color: 'white', fontSize: '0.9rem', lineHeight: '1.6' }}>{job.culture || 'High-velocity DNA.'}</p>
-                                </div>
-                            </div>
-                        </div>
-                    </motion.div>
-                )}
-            </AnimatePresence>
-          </motion.div>
-        ))}
+      <div className="flex justify-between items-center bg-white-02 p-4 rounded-2xl border border-white-05">
+         <div className="admin-search-wrapper max-w-md">
+            <Search className="search-icon-abs" size={18} />
+            <input type="text" placeholder="Search index by title or team..." value={searchQuery} onChange={(e) => setSearchQuery(e.target.value)} className="admin-search-field" />
+         </div>
+         <div className="flex gap-1 items-center">
+            <button className="btn-action-pro btn-ghost px-6 py-2.5 rounded-xl"><Filter size={16} /> Filters</button>
+            <div className="v-line" style={{ height: '20px', margin: '0 10px' }}></div>
+            <div className="text-muted-700 font-bold text-sm px-4">Displaying {filteredJobs.length} Positions</div>
+         </div>
       </div>
 
-      {jobs.length === 0 && (
-        <div style={{ padding: '6rem', textAlign: 'center', background: 'white', borderRadius: '20px', border: '2px dashed #e5e7eb' }}>
-          <Briefcase size={48} style={{ color: '#d1d5db', marginBottom: '1.5rem' }} />
-          <h4 style={{ color: '#374151', fontWeight: '700', marginBottom: '0.5rem' }}>No job postings yet</h4>
-          <p style={{ color: '#9ca3af', fontSize: '0.9rem' }}>Click "New Job Posting" to get started.</p>
-        </div>
-      )}
+      <div className="jobs-layout-grid">
+        {filteredJobs.length > 0 ? filteredJobs.map(job => (
+          <motion.div
+            key={job.id} layout className="glass-card" onClick={() => setSelectedJobForModal(job)}
+            style={{ 
+                border: '1px solid var(--card-border)', 
+                background: 'hsla(0,0%,100%,0.01)',
+                padding: '2.5rem',
+                cursor: 'pointer'
+            }}
+            whileHover={{ borderColor: 'var(--primary-glow)', backgroundColor: 'hsla(217, 91%, 60%, 0.03)' }}
+          >
+            <div className="flex justify-between items-start mb-6">
+                <div className="flex gap-1">
+                    <div className="kpi-icon-box text-primary w-12 h-12 rounded-xl flex items-center justify-center bg-primary-dim border border-primary-20"><Briefcase size={22} /></div>
+                    <div>
+                        <h3 className="text-white text-xl font-extrabold mb-1">{job.title}</h3>
+                        <div className="flex gap-4 text-dim-600 font-bold text-xs uppercase tracking-tight">
+                            <span className="flex items-center gap-1"><Users size={12} /> {job.department}</span>
+                            <span className="flex items-center gap-1"><MapPin size={12} /> {job.location}</span>
+                        </div>
+                    </div>
+                </div>
+                <button onClick={(e) => handleDelete(e, job.id)} className="card-icon-button danger-ghost w-10 h-10 flex items-center justify-center"><Trash2 size={18} /></button>
+            </div>
+
+            <div className="flex gap-2 flex-wrap mb-5">
+                <span className="badge-success-compact">{job.salary || 'Competitive'}</span>
+                <span className="badge-primary-compact">{job.type || 'Full-Time'}</span>
+                <span className="text-muted-700 text-xs font-bold ml-auto self-center">{formatTimeAgo(job.createdAt)}</span>
+            </div>
+
+            <p className={`card-summary-clamped text-base leading-relaxed mb-6`}>{job.description}</p>
+
+            <div className="flex justify-between items-center pt-5 border-t border-white-05">
+                <div className="flex items-center gap-2 text-white font-extrabold text-sm"><Users size={14} className="text-primary" /> {job.applications?.length || 0} Pipelines</div>
+                <div onClick={(e) => { e.stopPropagation(); setSelectedJobForModal(job); }} className="text-primary font-black text-sm flex items-center gap-1 uppercase tracking-wider cursor-pointer hover:text-primary-glow transition-colors">
+                    Inspect Details <ArrowRight size={16} />
+                </div>
+            </div>
+          </motion.div>
+        )) : (
+            <div className="infra-msg-shell w-full" style={{ gridColumn: '1 / -1' }}>
+                <Briefcase size={40} className="mb-4 opacity-50 mx-auto" color="var(--primary)" />
+                <h3 className="text-white text-xl font-bold">No Positions Indexed</h3>
+                <p className="admin-desc-muted mt-2">Upload a JD PDF or create a manual posting to begin extraction.</p>
+            </div>
+        )}
+      </div>
+
+      <AnimatePresence>
+        {showCreateForm && (
+          <div className="modal-overlay">
+            <motion.div initial={{ scale: 0.98, opacity: 0 }} animate={{ scale: 1, opacity: 1 }} className="glass-card pro-modal-frame">
+              <button onClick={() => setShowCreateForm(false)} className="modal-close-btn"><X size={18} /></button>
+              <div className="flex items-center gap-3 mb-6">
+                  <div className="bg-primary p-2 rounded-lg shadow-glow-primary"><Brain size={20} color="white" /></div>
+                  <div><h3 className="text-white text-xl font-black">Neural Extraction Result</h3><p className="admin-desc-muted text-xs mt-0.5">Verify and finalize the AI-populated strategy.</p></div>
+              </div>
+              <form onSubmit={handleCreate}>
+                 <div className="form-grid-3">
+                    <div className="flex-col gap-05"><label className="label-pro">Title</label><input type="text" value={newJob.title} onChange={(e) => setNewJob({...newJob, title: e.target.value})} className="pro-input" required /></div>
+                    <div className="flex-col gap-05"><label className="label-pro">Department</label><input type="text" value={newJob.department} onChange={(e) => setNewJob({...newJob, department: e.target.value})} className="pro-input" required /></div>
+                    <div className="flex-col gap-05"><label className="label-pro">Location</label><input type="text" value={newJob.location} onChange={(e) => setNewJob({...newJob, location: e.target.value})} className="pro-input" required /></div>
+                 </div>
+                 <div className="form-grid-2">
+                    <div className="flex-col gap-05"><label className="label-pro">Salary Range</label><input type="text" value={newJob.salary} onChange={(e) => setNewJob({...newJob, salary: e.target.value})} className="pro-input" /></div>
+                    <div className="flex-col gap-05"><label className="label-pro">Job Type</label><select value={newJob.type} onChange={(e) => setNewJob({...newJob, type: e.target.value})} className="pro-input cursor-pointer"><option value="Full-Time">Full-Time</option><option value="Part-Time">Part-Time</option><option value="Internship">Internship</option><option value="Contract">Contract</option></select></div>
+                 </div>
+                 <div className="flex-col gap-05 mb-4"><label className="label-pro">Skill Requirements (One per line)</label><textarea value={newJob.skills} onChange={(e) => setNewJob({...newJob, skills: e.target.value})} className="pro-input h-20" /></div>
+                 <div className="flex-col gap-05 mb-6"><label className="label-pro">Description & Summary</label><textarea value={newJob.description} onChange={(e) => setNewJob({...newJob, description: e.target.value})} className="pro-input h-28" required /></div>
+                 <div className="flex justify-end gap-3 mt-4">
+                    <button type="button" onClick={() => setShowCreateForm(false)} className="btn-action-pro btn-ghost px-6 py-2 rounded-lg border-none">Cancel</button>
+                    <button type="submit" className="btn-action-pro btn-primary h-11 px-6 rounded-lg" disabled={isSubmitting}>{isSubmitting ? 'Syncing...' : 'Commit Strategy'}</button>
+                 </div>
+              </form>
+            </motion.div>
+          </div>
+        )}
+      </AnimatePresence>
+      <JobProfileModal 
+        isOpen={!!selectedJobForModal} 
+        onClose={() => setSelectedJobForModal(null)} 
+        job={selectedJobForModal} 
+        onSelectCandidate={setSelectedCandidateForProfile} 
+      />
+      <TalentProfileModal isOpen={!!selectedCandidateForProfile} onClose={() => setSelectedCandidateForProfile(null)} candidate={selectedCandidateForProfile} />
     </div>
   );
 };
-
-const inputStyle = { width: '100%', background: 'hsla(255, 255%, 255%, 0.03)', border: '1px solid var(--card-border)', padding: '1.25rem', borderRadius: '18px', color: 'white', fontSize: '1.05rem', outline: 'none' };
 
 export default AdminJobDescriptions;

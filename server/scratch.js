@@ -1,8 +1,9 @@
-import { PrismaClient } from '@prisma/client'
-const prisma = new PrismaClient()
-
+const { PrismaClient } = require('@prisma/client');
+const prisma = new PrismaClient();
 async function main() {
-  const candidates = await prisma.candidate.findMany();
+  const candidates = await prisma.candidate.findMany({ include: { applications: { include: { job: true } } } });
   console.log(JSON.stringify(candidates, null, 2));
 }
-main().finally(() => prisma.$disconnect());
+main()
+  .catch(e => console.error(e))
+  .finally(async () => await prisma.$disconnect());

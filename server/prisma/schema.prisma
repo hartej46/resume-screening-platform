@@ -20,13 +20,29 @@ model Candidate {
   applied      String
   skills       String[]
   summary      String?
+  resumeText   String?
   feedback     String?
   file         String?
   detailedAnalysis Json?
+  bio          String?
   notes        String?       @default("")
   createdAt    DateTime      @default(now())
   updatedAt    DateTime      @updatedAt
   applications Application[]
+  resumes      Resume[]
+  interviews   Interview[]
+}
+
+model Resume {
+  id          Int       @id @default(autoincrement())
+  candidateId Int
+  candidate   Candidate @relation(fields: [candidateId], references: [id], onDelete: Cascade)
+  name        String
+  score       Int       @default(0)
+  summary     String?
+  active      Boolean   @default(false)
+  createdAt   DateTime  @default(now())
+  updatedAt   DateTime  @updatedAt
 }
 
 model Job {
@@ -48,19 +64,56 @@ model Job {
   requirements     String?  // Qualifications
   bonusPoints      String?  // Bonus / nice-to-have
   notes            String?  @default("")
+  jdParsed         Json?
   createdAt        DateTime @default(now())
-  updatedAt   DateTime @updatedAt
+  updatedAt        DateTime @updatedAt
+  applications     Application[]
+  interviews       Interview[]
 }
 
 model Application {
   id                Int       @id @default(autoincrement())
   candidateId       Int
   candidate         Candidate @relation(fields: [candidateId], references: [id])
-  matchScore        Int
-  technicalScore    Int
-  domainRelevance   Int
-  strengths         String
-  gaps              String
+  jobId             Int
+  job               Job       @relation(fields: [jobId], references: [id], onDelete: Cascade)
+  matchScore        Int?
+  technicalScore    Int?
+  domainRelevance   Int?
+  strengths         String?
+  gaps              String?
+  resumeName        String?   @default("Resume")
+  resumeScore       Int?
+  resumeSummary     String?
+  resumeSkills      String[]
+  matchBreakdown    Json?
   createdAt         DateTime  @default(now())
   updatedAt         DateTime  @updatedAt
 }
+
+model Interview {
+  id              Int       @id @default(autoincrement())
+  candidateEmail  String
+  candidate       Candidate @relation(fields: [candidateId], references: [id])
+  candidateId     Int
+  job             Job       @relation(fields: [jobId], references: [id])
+  jobId           Int
+  transcript      Json?
+  overallScore    Int?      @default(0)
+  feedback        String?
+  analysis        Json?     // Detailed metadata for the report
+  candidateRating Int?      // Stars (1-5)
+  candidateComment String?  // Textual feedback
+  createdAt       DateTime  @default(now())
+}
+
+model NewsArticle {
+  id        String   @id @default(cuid())
+  title     String
+  summary   String
+  url       String   @unique
+  source    String
+  imageUrl  String?
+  fetchedAt DateTime @default(now())
+}
+
